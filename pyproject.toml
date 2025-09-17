@@ -27,8 +27,5 @@ dev = [
 [tool.setuptools]
 include-package-data = true
 
-# [tool.uv.sources]
-# transformers = { path = "../transformers", editable = true }
-
-# [project.scripts]
-# xtrain = "xtrain.run.sft:app"
+[project.scripts]
+xtrain = "xtrain.run.sft:app"
