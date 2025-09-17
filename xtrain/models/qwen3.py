@@ -78,10 +78,7 @@ class Qwen3Attention(nnx.Module):
         attn_weights = jnp.einsum("BMNH,BTNH->BNMT", q, k)
         attn_weights = attn_weights / jnp.sqrt(self.head_dim)
 
-        if attention_mask is not None:
-            attn_weights = attn_weights + attention_mask[:,:,:,: k.shape[-2]]
-
-        # TODO: Integrate this into above if condition
+        # TODO: Apply attention_mask here and make it compatible with huggingface
         causal_mask = jnp.tril(jnp.ones((x.shape[1], x.shape[1])))
         causal_mask = causal_mask[jnp.newaxis, jnp.newaxis, :, :]
 
@@ -171,7 +168,6 @@ class Qwen3Model(nnx.Module):
         all_hidden_states = []
         all_self_attns = []
         
-        # TODO: Lots of stuff missing here
         for layer in self.layers:
             if output_hidden_states:
                 all_hidden_states.append(hidden_states)
@@ -187,8 +183,3 @@ class Qwen3Model(nnx.Module):
             "hidden_states": all_hidden_states,
             "attentions": all_self_attns,
         }
-
-
-# config = AutoConfig.from_pretrained("Qwen/Qwen3-0.6B")
-# model = Qwen3Model(config, rngs=nnx.Rngs(0))
-# nnx.display(model)
