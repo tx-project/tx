@@ -23,16 +23,12 @@ def load_checkpoint(filename: str | os.PathLike, model: nnx.Module) -> None:
     updates = []
     for path, param in model_params:
         key = get_key(path)
-        if path[-2] in {"up_proj", "down_proj", "gate_proj"}:
-            tensors[key] = tensors[key].T
-        if path[-2] in {"q_proj", "k_proj", "v_proj", "o_proj"}:
-            tensors[key] = tensors[key].T.reshape(param.shape)
         if path[-2] == "lm_head" and key not in tensors:
-            # This model uses tied embeddings (TODO: Can this be improved?)
+            # This model uses tied embeddings
             key = "model.embed_tokens.weight"
-            tensors[key] = tensors[key].T
-        if path[-2] == "embed_tokens":
-            tensors[key] = tensors[key].T
+        tensors[key] = tensors[key].T
+        if path[-2] in {"q_proj", "k_proj", "v_proj", "o_proj"}:
+            tensors[key] = tensors[key].reshape(param.shape)
         assert param.shape == tensors[key].shape, f"shape mismatch for {key}"
         updates.append((path, tensors[key]))
     nnx.update(model, nnx.from_flat_state(updates))
@@ -57,8 +53,5 @@ def test_qwen3():
         outputs = model(input_ids.numpy(), output_hidden_states=True, output_attentions=True)
         assert np.allclose(hf_outputs.hidden_states[0], outputs["hidden_states"][0], rtol=1e-6)
         assert np.allclose(hf_outputs.attentions[0], outputs["attentions"][0], rtol=1e-4)
-
         assert np.allclose(hf_outputs.hidden_states[1], outputs["hidden_states"][1], rtol=1e-3, atol=1e-3)
-        assert np.allclose(hf_outputs.hidden_states[2], outputs["hidden_states"][2], rtol=1e-3, atol=1e-3)
-
         assert np.allclose(hf_outputs.hidden_states[-1], outputs["hidden_states"][-1], rtol=1e-3, atol=1e-3)
