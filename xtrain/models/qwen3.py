@@ -14,7 +14,7 @@ class RMSNorm(nnx.Module):
         self.eps = eps
         self.weight = Param(size, rngs=rngs)
 
-    def __call__(self, x: jax.Array):
+    def __call__(self, x: jax.Array) -> jax.Array:
         rms = jnp.sqrt(jnp.mean(x ** 2, axis=-1, keepdims=True) + self.eps)
         return self.weight * x / rms
 
@@ -25,7 +25,7 @@ class MultiHeadProj(nnx.Module):
         self.subscripts = subscripts
         self.weight = Param(*shape, rngs=rngs)
 
-    def __call__(self, x: jax.Array):
+    def __call__(self, x: jax.Array) -> jax.Array:
         return jnp.einsum(self.subscripts, x, self.weight)
 
 
@@ -60,7 +60,7 @@ class Qwen3Attention(nnx.Module):
         *,
         attention_mask: jax.Array | None = None,
         output_attentions: bool | None = None
-    ):
+    ) -> tuple: # TODO: fix return type
         q = self.q_norm(self.q_proj(x))
         k = self.k_norm(self.k_proj(x))
         v = self.v_proj(x)
@@ -96,7 +96,7 @@ class Qwen3MLP(nnx.Module):
         self.up_proj = nnx.Linear(hidden_size, intermediate_size, use_bias=False, rngs=rngs)
         self.down_proj = nnx.Linear(intermediate_size, hidden_size, use_bias=False, rngs=rngs)
 
-    def __call__(self, x: jax.Array):
+    def __call__(self, x: jax.Array) -> jax.Array:
         return self.down_proj(nnx.silu(self.gate_proj(x)) * self.up_proj(x))
         
 
@@ -118,7 +118,7 @@ class Qwen3DecoderLayer(nnx.Module):
         *,
         attention_mask: jax.Array | None = None,
         output_attentions: bool | None = None
-    ):
+    ) -> tuple[jax.Array]:
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
         hidden_states, self_attn_weights = self.self_attn(
@@ -159,7 +159,7 @@ class Qwen3Model(nnx.Module):
         attention_mask: jax.Array | None = None,
         output_hidden_states: bool | None = None,
         output_attentions: bool | None = None
-    ):
+    ) -> dict: # TODO: fix return type
         output_hidden_states = output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         
