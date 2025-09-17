@@ -151,6 +151,7 @@ class Qwen3Model(nnx.Module):
             rngs=rngs
         )
         self.layers = [Qwen3DecoderLayer(config, rngs=rngs) for _ in range(config.num_hidden_layers)]
+        self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, rngs=rngs)
 
     def __call__(
         self,
@@ -178,8 +179,38 @@ class Qwen3Model(nnx.Module):
             if output_attentions:
                 all_self_attns.append(layer_outputs[1])
 
+        hidden_states = self.norm(hidden_states)
+        if output_hidden_states:
+            all_hidden_states += (hidden_states,)
+
         return {
             "last_hidden_state": hidden_states,
             "hidden_states": all_hidden_states,
             "attentions": all_self_attns,
         }
+
+class Qwen3ForCausalLM(nnx.Module):
+
+    def __init__(self, config: Qwen3Config, *, rngs: nnx.Rngs) -> None:
+        self.config = config
+        self.model = Qwen3Model(config, rngs=rngs)
+        self.lm_head = nnx.Linear(config.hidden_size, config.vocab_size, use_bias=False, rngs=rngs)
+
+    def __call__(
+        self,
+        input_ids: jax.Array,
+        *,
+        attention_mask: jax.Array | None = None,
+        output_hidden_states: bool | None = None,
+        output_attentions: bool | None = None
+    ) -> dict: # TODO: fix return type
+        outputs = self.model(
+            input_ids,
+            attention_mask=attention_mask,
+            output_hidden_states=output_hidden_states,
+            output_attentions=output_attentions,
+        )
+        hidden_states = outputs["last_hidden_state"]
+        logits = self.lm_head(hidden_states)
+
+        return {"logits": logits, **outputs}

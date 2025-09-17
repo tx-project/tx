@@ -1,7 +1,7 @@
 from xtrain.models.mnist import Mnist
-from xtrain.models.qwen3 import Qwen3Model
+from xtrain.models.qwen3 import Qwen3ForCausalLM
 
 __all__ = [
     Mnist,
-    Qwen3Model,
+    Qwen3ForCausalLM,
 ]
