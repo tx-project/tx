@@ -27,10 +27,10 @@ def save_checkpoint(state: nnx.State, filename: str | os.PathLike) -> None:
 
 
 def loss_fn(model, batch):
-    logits = model(batch['text'])["logits"]
+    logits = model(batch["text"], attention_mask=batch["attention_mask"])["logits"]
     print("BBB logits", logits)
     loss = optax.softmax_cross_entropy_with_integer_labels(
-        logits=logits, labels=batch['target']
+        logits=logits, labels=batch["target"]
     )
     return loss.mean(), logits
 
@@ -61,14 +61,13 @@ def main(
         loss=nnx.metrics.Average("loss"),
     )
 
-    ds: IterableDataset = train_dataset #.with_format("numpy") # ty: ignore
-    for step, data in enumerate(ds.iter(batch_size=32)):
-        tokens = tokenizer(data["Text"], return_tensors="pt", padding=True)
-        batch = jnp.asarray(tokens["input_ids"])
+    for step, data in enumerate(train_dataset.iter(batch_size=32)):
+        batch = {k: jnp.asarray(v) for k, v in tokenizer(data["Text"], return_tensors="np", padding=True).items()}
         model.train()
         input_batch = {
-            "text": batch[:,:-1],
-            "target": batch[:, 1:],
+            "text": batch["input_ids"][:,:-1],
+            "attention_mask": batch["attention_mask"][:,:-1],
+            "target": batch["input_ids"][:, 1:],
         }
         loss = train_step(model, optimizer, metrics, input_batch)
         print("loss", loss)
