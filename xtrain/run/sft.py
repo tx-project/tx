@@ -5,18 +5,27 @@ import jax.numpy as jnp
 from flax import nnx
 import optax
 import safetensors.numpy
-from transformers import AutoConfig, AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer, PretrainedConfig
 import typer
 
 from xtrain.models import Qwen3ForCausalLM
+from xtrain.utils import get_safetensors_key_mapping
 
 app = typer.Typer()
 
 
-def save_checkpoint(state: nnx.State, filename: str | os.PathLike) -> None:
-    params = nnx.to_flat_state(state)
-    tensor_dict = {".".join(str(k)): v for k, v in params if "rngs" not in k}
-    safetensors.numpy.save_file(tensor_dict, filename)
+def save_checkpoint(config: PretrainedConfig, state: nnx.State, filename: str | os.PathLike) -> None:
+    key_mapping = get_safetensors_key_mapping(config, model)
+    model_params = nnx.to_flat_state(state)
+    tensors = {}
+    for path, param in model_params:
+        if "rngs" in path:
+            continue
+        key = key_mapping[path]
+        tensors[key] = param.T
+        if path[-2] in {"q_proj", "k_proj", "v_proj", "o_proj"}:
+            tensors[key] = tensors[key].reshape(param.shape[0], -1)
+    safetensors.numpy.save_file(tensors, filename)
 
 
 # def cross_entropy_loss(logits, targets):
@@ -67,7 +76,7 @@ def main(
         print("step", step, "loss", loss)
 
         if step % 10 == 0:
-            save_checkpoint(nnx.state(model), "checkpoint.safetensors")
+            save_checkpoint(config, nnx.state(model), "checkpoint.safetensors")
 
 
 if __name__ == "__main__":
