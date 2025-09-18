@@ -15,7 +15,7 @@ app = typer.Typer()
 
 def save_checkpoint(state: nnx.State, filename: str | os.PathLike) -> None:
     params = nnx.to_flat_state(state)
-    tensor_dict = {".".join(k): v for k, v in params if "rngs" not in k}
+    tensor_dict = {".".join(str(k)): v for k, v in params if "rngs" not in k}
     safetensors.numpy.save_file(tensor_dict, filename)
 
 
@@ -63,7 +63,7 @@ def main(
             "attention_mask": batch["attention_mask"][:,:-1],
             "target": batch["input_ids"][:, 1:],
         }
-        loss = train_step(model, optimizer, metrics, input_batch)
+        loss = train_step(model, optimizer, input_batch)
         print("step", step, "loss", loss)
 
         if step % 10 == 0:
