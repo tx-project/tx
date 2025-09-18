@@ -1,12 +1,14 @@
 import os
 
 from datasets import IterableDataset, load_dataset
+import jax.numpy as jnp
 from flax import nnx
 import optax
 import safetensors.numpy
+from transformers import AutoConfig, AutoTokenizer
 import typer
 
-from xtrain.models import Mnist
+from xtrain.models import Qwen3ForCausalLM
 
 app = typer.Typer()
 
@@ -17,19 +19,27 @@ def save_checkpoint(state: nnx.State, filename: str | os.PathLike) -> None:
     safetensors.numpy.save_file(tensor_dict, filename)
 
 
+# def cross_entropy_loss(logits, targets):
+#     assert logits.ndim == targets.ndim + 1, f"Shapes are {logits.shape} for logits and {targets.shape} for targets."
+#     onehot_targets = nnx.one_hot(targets, logits.shape[-1])
+#     loss = -jnp.sum(onehot_targets * nnx.log_softmax(logits), axis=-1)
+#     return loss.sum()
+
+
 def loss_fn(model, batch):
-    logits = model(batch['image'])
+    logits = model(batch['text'][None,:])["logits"]
+    print("BBB logits", logits)
     loss = optax.softmax_cross_entropy_with_integer_labels(
-        logits=logits, labels=batch['label']
+        logits=logits, labels=batch['target'][None,:]
     )
     return loss.mean(), logits
 
 
-@nnx.jit
+# @nnx.jit
 def train_step(model, optimizer: nnx.Optimizer, metrics: nnx.MultiMetric, batch):
     grad_fn = nnx.value_and_grad(loss_fn, has_aux=True)
     (loss, logits), grads = grad_fn(model, batch)
-    metrics.update(loss=loss, logits=logits, labels=batch['label'])
+    # metrics.update(loss=loss, logits=logits, labels=batch['label'])
     optimizer.update(model, grads)
 
     
@@ -38,8 +48,9 @@ def main(
     dataset: str = typer.Option(..., "--dataset", help="HuggingFace dataset to use for training.")
 ) -> None:
     train_dataset = load_dataset(dataset, split="train")
-    
-    model = Mnist(rngs=nnx.Rngs(0))
+    tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
+    config = AutoConfig.from_pretrained("Qwen/Qwen3-0.6B")
+    model = Qwen3ForCausalLM(config, rngs=nnx.Rngs(0))
 
     optimizer = nnx.Optimizer(
         model, optax.adamw(0.005, 0.9), wrt=nnx.Param
@@ -50,11 +61,12 @@ def main(
     )
 
     ds: IterableDataset = train_dataset.with_format("numpy") # ty: ignore
-    for step, batch in enumerate(ds.iter(batch_size=32)):
+    for step, data in enumerate(ds.iter(batch_size=1)):
+        tokens = jnp.asarray(tokenizer(data["Text"][0])["input_ids"])
         model.train()
         input_batch = {
-            "image": 1.0 * batch["image"][:,:,:,None] / 255.0,
-            "label": batch["label"]
+            "text": tokens[:-1],
+            "target": tokens[1:],
         }
         train_step(model, optimizer, metrics, input_batch)
 
