@@ -14,9 +14,9 @@ from xtrain.utils import get_safetensors_key_mapping
 app = typer.Typer()
 
 
-def save_checkpoint(config: PretrainedConfig, state: nnx.State, filename: str | os.PathLike) -> None:
+def save_checkpoint(config: PretrainedConfig, model: nnx.Module, filename: str | os.PathLike) -> None:
     key_mapping = get_safetensors_key_mapping(config, model)
-    model_params = nnx.to_flat_state(state)
+    model_params = nnx.to_flat_state(nnx.state(model))
     tensors = {}
     for path, param in model_params:
         if "rngs" in path:
@@ -76,7 +76,7 @@ def main(
         print("step", step, "loss", loss)
 
         if step % 10 == 0:
-            save_checkpoint(config, nnx.state(model), "checkpoint.safetensors")
+            save_checkpoint(config, model, "checkpoint.safetensors")
 
 
 if __name__ == "__main__":
