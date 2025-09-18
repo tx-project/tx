@@ -28,7 +28,6 @@ def save_checkpoint(state: nnx.State, filename: str | os.PathLike) -> None:
 
 def loss_fn(model, batch):
     logits = model(batch["text"], attention_mask=batch["attention_mask"])["logits"]
-    print("BBB logits", logits)
     loss = optax.softmax_cross_entropy_with_integer_labels(
         logits=logits, labels=batch["target"]
     )
@@ -36,10 +35,9 @@ def loss_fn(model, batch):
 
 
 @nnx.jit
-def train_step(model, optimizer: nnx.Optimizer, metrics: nnx.MultiMetric, batch):
+def train_step(model, optimizer: nnx.Optimizer, batch):
     grad_fn = nnx.value_and_grad(loss_fn, has_aux=True)
     (loss, logits), grads = grad_fn(model, batch)
-    # metrics.update(loss=loss, logits=logits, labels=batch['label'])
     optimizer.update(model, grads)
     return loss
 
@@ -56,10 +54,6 @@ def main(
     optimizer = nnx.Optimizer(
         model, optax.adamw(0.005, 0.9), wrt=nnx.Param
     )
-    metrics = nnx.MultiMetric(
-        accuracy=nnx.metrics.Accuracy(),
-        loss=nnx.metrics.Average("loss"),
-    )
 
     for step, data in enumerate(train_dataset.iter(batch_size=32)):
         batch = {k: jnp.asarray(v) for k, v in tokenizer(data["Text"], return_tensors="np", padding=True).items()}
@@ -70,12 +64,10 @@ def main(
             "target": batch["input_ids"][:, 1:],
         }
         loss = train_step(model, optimizer, metrics, input_batch)
-        print("loss", loss)
+        print("step", step, "loss", loss)
 
-    for metric, value in metrics.compute().items():
-        print(metric, value)
-
-    save_checkpoint(nnx.state(model), "checkpoint.safetensors")
+        if step % 10 == 0:
+            save_checkpoint(nnx.state(model), "checkpoint.safetensors")
 
 
 if __name__ == "__main__":
