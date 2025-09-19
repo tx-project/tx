@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from datasets import IterableDataset, load_dataset
 import jax.numpy as jnp
@@ -22,9 +23,14 @@ def save_checkpoint(config: PretrainedConfig, model: nnx.Module, filename: str |
         if "rngs" in path:
             continue
         key = key_mapping[path]
-        tensors[key] = param.T
-        if path[-2] in {"q_proj", "k_proj", "v_proj", "o_proj"}:
-            tensors[key] = tensors[key].reshape(param.shape[0], -1)
+        if path[-2] in {"q_proj", "k_proj", "v_proj"}:
+            param = param.reshape(param.shape[0], -1)
+        if path[-2] in {"o_proj"}:
+            param = param.reshape(-1, param.shape[-1])
+        if path[-2] == "embed_tokens":
+            tensors[key] = param
+        else:
+            tensors[key] = param.T
     safetensors.numpy.save_file(tensors, filename)
 
 
@@ -53,7 +59,9 @@ def train_step(model, optimizer: nnx.Optimizer, batch):
     
 @app.command()
 def main(
-    dataset: str = typer.Option(..., "--dataset", help="HuggingFace dataset to use for training.")
+    dataset: str = typer.Option(..., "--dataset", help="HuggingFace dataset to use for training"),
+    output_dir: Path = typer.Option(..., "--output-dir", help="The output directory where the model predictions and checkpoints will be written"),
+    per_device_batch_size: int = typer.Option(..., "--per-device-batch-size", help="Batch size per device accelerator for training."),
 ) -> None:
     train_dataset = load_dataset(dataset, split="train")
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
@@ -61,11 +69,11 @@ def main(
     model = Qwen3ForCausalLM(config, rngs=nnx.Rngs(0))
 
     optimizer = nnx.Optimizer(
-        model, optax.adamw(0.005, 0.9), wrt=nnx.Param
+        model, optax.adamw(0.002, weight_decay=0.1), wrt=nnx.Param
     )
 
-    for step, data in enumerate(train_dataset.iter(batch_size=32)):
-        batch = {k: jnp.asarray(v) for k, v in tokenizer(data["Text"], return_tensors="np", padding=True).items()}
+    for step, data in enumerate(train_dataset.iter(batch_size=per_device_batch_size)):
+        batch = {k: jnp.asarray(v) for k, v in tokenizer(data["text"], return_tensors="np", padding=True).items()}
         model.train()
         input_batch = {
             "text": batch["input_ids"][:,:-1],
@@ -76,7 +84,7 @@ def main(
         print("step", step, "loss", loss)
 
         if step % 10 == 0:
-            save_checkpoint(config, model, "checkpoint.safetensors")
+            save_checkpoint(config, model, output_dir / "model.safetensors")
 
 
 if __name__ == "__main__":
