@@ -10,19 +10,19 @@ from transformers import AutoConfig, AutoTokenizer, PretrainedConfig
 import typer
 
 from xtrain.models import Qwen3ForCausalLM
-from xtrain.utils import get_safetensors_key_mapping
+from xtrain.utils import get_param_mapping
 
 app = typer.Typer()
 
 
 def save_checkpoint(config: PretrainedConfig, model: nnx.Module, filename: str | os.PathLike) -> None:
-    key_mapping = get_safetensors_key_mapping(config, model)
+    param_mapping = get_param_mapping(config, model)
     model_params = nnx.to_flat_state(nnx.state(model))
     tensors = {}
     for path, param in model_params:
         if "rngs" in path:
             continue
-        key = key_mapping[path]
+        key = param_mapping[path]
         if path[-2] in {"q_proj", "k_proj", "v_proj"}:
             param = param.reshape(param.shape[0], -1)
         if path[-2] in {"o_proj"}:

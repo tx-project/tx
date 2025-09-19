@@ -9,16 +9,16 @@ import safetensors.numpy
 import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, PretrainedConfig
 from xtrain.models import Qwen3ForCausalLM
-from xtrain.utils import get_safetensors_key_mapping
+from xtrain.utils import get_param_mapping
 
 
 def load_checkpoint(filename: str | os.PathLike, config: PretrainedConfig, model: nnx.Module) -> None:
-    key_mapping = get_safetensors_key_mapping(config, model)
+    param_mapping = get_param_mapping(config, model)
     tensors = safetensors.numpy.load_file(filename)
     model_params = nnx.to_flat_state(nnx.state(model))
     updates = []
     for path, param in model_params:
-        key = key_mapping[path]
+        key = param_mapping[path]
         tensors[key] = tensors[key].T
         if path[-2] in {"q_proj", "k_proj", "v_proj", "o_proj"}:
             tensors[key] = tensors[key].reshape(param.shape)
