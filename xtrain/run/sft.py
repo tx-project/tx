@@ -34,13 +34,6 @@ def save_checkpoint(config: PretrainedConfig, model: nnx.Module, filename: str |
     safetensors.numpy.save_file(tensors, filename)
 
 
-# def cross_entropy_loss(logits, targets):
-#     assert logits.ndim == targets.ndim + 1, f"Shapes are {logits.shape} for logits and {targets.shape} for targets."
-#     onehot_targets = nnx.one_hot(targets, logits.shape[-1])
-#     loss = -jnp.sum(onehot_targets * nnx.log_softmax(logits), axis=-1)
-#     return loss.sum()
-
-
 def loss_fn(model, batch):
     logits = model(batch["text"], attention_mask=batch["attention_mask"])["logits"]
     loss = optax.softmax_cross_entropy_with_integer_labels(
