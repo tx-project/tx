@@ -23,14 +23,11 @@ def save_checkpoint(config: PretrainedConfig, model: nnx.Module, filename: str |
         if "rngs" in path:
             continue
         key = param_mapping[path]
-        if path[-2] in {"q_proj", "k_proj", "v_proj"}:
+        if "q_proj" in path or "k_proj" in path or "v_proj" in path:
             param = param.reshape(param.shape[0], -1)
-        if path[-2] in {"o_proj"}:
+        elif "o_proj" in path:
             param = param.reshape(-1, param.shape[-1])
-        if path[-2] == "embed_tokens":
-            tensors[key] = param
-        else:
-            tensors[key] = param.T
+        tensors[key] = param if "embed_tokens" in path else param.T
     safetensors.numpy.save_file(tensors, filename)
 
 
