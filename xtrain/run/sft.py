@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from datasets import IterableDataset, load_dataset
+from datasets import load_dataset
 import jax.numpy as jnp
 from flax import nnx
 import optax
@@ -9,8 +9,7 @@ import safetensors.numpy
 from transformers import AutoConfig, AutoTokenizer, PretrainedConfig
 import typer
 
-from xtrain.models import Qwen3ForCausalLM
-from xtrain.utils import get_param_mapping
+from xtrain.utils import get_model_class, get_param_mapping
 
 app = typer.Typer()
 
@@ -49,14 +48,16 @@ def train_step(model, optimizer: nnx.Optimizer, batch):
     
 @app.command()
 def main(
+    model_name: str = typer.Option(..., "--model", help="HuggingFace model ID or local model path"),
     dataset: str = typer.Option(..., "--dataset", help="HuggingFace dataset to use for training"),
     output_dir: Path = typer.Option(..., "--output-dir", help="The output directory where the model predictions and checkpoints will be written"),
     per_device_batch_size: int = typer.Option(..., "--per-device-batch-size", help="Batch size per device accelerator for training."),
 ) -> None:
     train_dataset = load_dataset(dataset, split="train")
-    tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
-    config = AutoConfig.from_pretrained("Qwen/Qwen3-0.6B")
-    model = Qwen3ForCausalLM(config, rngs=nnx.Rngs(0))
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    config = AutoConfig.from_pretrained(model_name)
+    model_class = get_model_class(config)
+    model = model_class(config, rngs=nnx.Rngs(0))
 
     optimizer = nnx.Optimizer(
         model, optax.adamw(0.002, weight_decay=0.1), wrt=nnx.Param

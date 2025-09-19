@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 import tempfile
 
-import jax.numpy as jnp
 from flax import nnx
 import numpy as np
 import safetensors.numpy

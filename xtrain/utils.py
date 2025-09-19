@@ -1,6 +1,20 @@
 from flax import nnx
 from transformers import PretrainedConfig
 
+from xtrain import models
+
+
+def get_model_class(config: PretrainedConfig) -> nnx.Module:
+    "Get the correct model class based on the config."
+
+    for architecture in config.architectures or []:
+        if hasattr(models, architecture):
+            return getattr(models, architecture)
+
+    raise ValueError(
+        f"None of the architectures {config.architectures} is currently supported."
+    )
+
 
 def get_param_mapping(config: PretrainedConfig, model: nnx.Module) -> dict[tuple, str]:
     "Get the mapping from model parameter paths to safetensors keys."

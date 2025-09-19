@@ -1,7 +1,7 @@
 from flax import nnx
 import jax
 from jax import numpy as jnp
-from transformers import AutoConfig, Qwen3Config
+from transformers import Qwen3Config
 
 
 def Param(*shape: int, rngs: nnx.Rngs):
