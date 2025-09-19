@@ -14,7 +14,7 @@ def get_param_mapping(config: PretrainedConfig, model: nnx.Module) -> dict[tuple
     model_params = nnx.to_flat_state(nnx.state(model))
     for path, _ in model_params:
         key = get_key(path)
-        if path[-2] == "lm_head" and config.tie_word_embeddings:
-            key = "model.embed_tokens.weight"
+        if "lm_head" in path and config.tie_word_embeddings:
+            key = next((get_key(p) for p, _ in model_params if "embed_tokens" in p), key)
         param_mapping[path] = key
     return param_mapping
