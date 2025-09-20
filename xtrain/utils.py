@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from flax import nnx
@@ -10,7 +11,7 @@ if TYPE_CHECKING:
     import torch
 
 
-def get_dtype(dtype: "str | torch.dtype") -> jnp.dtype:
+def get_dtype(dtype: str | torch.dtype) -> jnp.dtype:
     "Convert torch dtype to jax dtype."
 
     match str(dtype):

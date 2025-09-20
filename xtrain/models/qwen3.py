@@ -1,18 +1,16 @@
-from typing import Any
-
 from flax import nnx
 import jax
 from jax import numpy as jnp
 from transformers import Qwen3Config
 
 
-def Param(*shape: int, dtype: Any, rngs: nnx.Rngs):
+def Param(*shape: int, dtype: jnp.dtype, rngs: nnx.Rngs):
     return nnx.Param(nnx.initializers.normal()(rngs.param(), shape, dtype))
 
 
 class RMSNorm(nnx.Module):
 
-    def __init__(self, size: int, *, eps: float = 1e-6, dtype: Any, rngs: nnx.Rngs) -> None:
+    def __init__(self, size: int, *, eps: float = 1e-6, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.eps = eps
         self.weight = Param(size, dtype=dtype, rngs=rngs)
 
@@ -23,7 +21,7 @@ class RMSNorm(nnx.Module):
 
 class MultiHeadProj(nnx.Module):
 
-    def __init__(self, subscripts: str, *shape: int, dtype: Any, rngs: nnx.Rngs) -> None:
+    def __init__(self, subscripts: str, *shape: int, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.subscripts = subscripts
         self.weight = Param(*shape, dtype=dtype, rngs=rngs)
 
@@ -42,7 +40,7 @@ def apply_rope(inputs: jax.Array, position_ids: jax.Array, head_dim: int, theta:
 
 class Qwen3Attention(nnx.Module):
 
-    def __init__(self, config: Qwen3Config, *, dtype: Any, rngs: nnx.Rngs) -> None:
+    def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.config = config
         self.num_heads = config.num_attention_heads
         self.num_kv_heads = config.num_key_value_heads
@@ -94,7 +92,7 @@ class Qwen3Attention(nnx.Module):
 
 class Qwen3MLP(nnx.Module):
 
-    def __init__(self, config: Qwen3Config, *, dtype: Any, rngs: nnx.Rngs) -> None:
+    def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.gate_proj = nnx.Linear(config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype, rngs=rngs)
         self.up_proj = nnx.Linear(config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype, rngs=rngs)
         self.down_proj = nnx.Linear(config.intermediate_size, config.hidden_size, use_bias=False, dtype=dtype, param_dtype=dtype, rngs=rngs)
@@ -105,7 +103,7 @@ class Qwen3MLP(nnx.Module):
 
 class Qwen3DecoderLayer(nnx.Module):
 
-    def __init__(self, config: Qwen3Config, *, dtype: Any, rngs: nnx.Rngs) -> None:
+    def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
         self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
         self.self_attn = Qwen3Attention(config, dtype=dtype, rngs=rngs)
@@ -142,7 +140,7 @@ class Qwen3DecoderLayer(nnx.Module):
 
 class Qwen3Model(nnx.Module):
 
-    def __init__(self, config: Qwen3Config, *, dtype: Any, rngs: nnx.Rngs) -> None:
+    def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.config = config
         self.embed_tokens = nnx.Embed(
             num_embeddings=config.vocab_size,
@@ -192,7 +190,7 @@ class Qwen3Model(nnx.Module):
 
 class Qwen3ForCausalLM(nnx.Module):
 
-    def __init__(self, config: Qwen3Config, *, dtype: Any, rngs: nnx.Rngs) -> None:
+    def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.config = config
         self.model = Qwen3Model(config, dtype=dtype, rngs=rngs)
         self.lm_head = nnx.Linear(config.hidden_size, config.vocab_size, use_bias=False, dtype=dtype, param_dtype=dtype, rngs=rngs)
