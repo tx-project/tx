@@ -1,33 +1,15 @@
-import os
 from pathlib import Path
 
 from datasets import load_dataset
 import jax.numpy as jnp
 from flax import nnx
 import optax
-import safetensors.numpy
-from transformers import AutoConfig, AutoTokenizer, PretrainedConfig
+from transformers import AutoConfig, AutoTokenizer
 import typer
 
-from xtrain.utils import get_dtype, get_model_class, get_param_mapping
+from xtrain.utils import get_dtype, get_model_class, save_checkpoint
 
 app = typer.Typer()
-
-
-def save_checkpoint(config: PretrainedConfig, model: nnx.Module, filename: str | os.PathLike) -> None:
-    param_mapping = get_param_mapping(config, model)
-    model_params = nnx.to_flat_state(nnx.state(model))
-    tensors = {}
-    for path, param in model_params:
-        if "rngs" in path:
-            continue
-        key = param_mapping[path]
-        if "q_proj" in path or "k_proj" in path or "v_proj" in path:
-            param = param.reshape(param.shape[0], -1)
-        elif "o_proj" in path:
-            param = param.reshape(-1, param.shape[-1])
-        tensors[key] = param if "embed_tokens" in path else param.T
-    safetensors.numpy.save_file(tensors, filename)
 
 
 def loss_fn(model, batch):
@@ -59,6 +41,8 @@ def main(
     config = AutoConfig.from_pretrained(model_name)
     model_class = get_model_class(config)
     model = model_class(config, dtype=get_dtype(config.dtype), rngs=nnx.Rngs(0))
+
+    # load_checkpoint(Path(tmp) / "model.safetensors", config, model)
 
     optimizer = nnx.Optimizer(
         model, optax.adamw(0.002, weight_decay=0.1), wrt=nnx.Param

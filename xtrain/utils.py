@@ -1,8 +1,11 @@
 from __future__ import annotations
+
+import os
 from typing import TYPE_CHECKING
 
 from flax import nnx
 import jax.numpy as jnp
+import safetensors.numpy
 from transformers import PretrainedConfig
 
 from xtrain import models
@@ -53,3 +56,34 @@ def get_param_mapping(config: PretrainedConfig, model: nnx.Module) -> dict[tuple
             key = next((get_key(p) for p, _ in model_params if "embed_tokens" in p), key)
         param_mapping[path] = key
     return param_mapping
+
+
+def load_checkpoint(filename: str | os.PathLike, config: PretrainedConfig, model: nnx.Module) -> None:
+    param_mapping = get_param_mapping(config, model)
+    tensors = safetensors.numpy.load_file(filename)
+    model_params = nnx.to_flat_state(nnx.state(model))
+    updates = []
+    for path, param in model_params:
+        key = param_mapping[path]
+        tensors[key] = tensors[key].T
+        if path[-2] in {"q_proj", "k_proj", "v_proj", "o_proj"}:
+            tensors[key] = tensors[key].reshape(param.shape)
+        assert param.shape == tensors[key].shape, f"shape mismatch for {key}"
+        updates.append((path, tensors[key]))
+    nnx.update(model, nnx.from_flat_state(updates))
+
+
+def save_checkpoint(config: PretrainedConfig, model: nnx.Module, filename: str | os.PathLike) -> None:
+    param_mapping = get_param_mapping(config, model)
+    model_params = nnx.to_flat_state(nnx.state(model))
+    tensors = {}
+    for path, param in model_params:
+        if "rngs" in path:
+            continue
+        key = param_mapping[path]
+        if "q_proj" in path or "k_proj" in path or "v_proj" in path:
+            param = param.reshape(param.shape[0], -1)
+        elif "o_proj" in path:
+            param = param.reshape(-1, param.shape[-1])
+        tensors[key] = param if "embed_tokens" in path else param.T
+    safetensors.numpy.save_file(tensors, filename)
