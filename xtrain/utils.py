@@ -1,14 +1,19 @@
+from typing import TYPE_CHECKING
+
 from flax import nnx
 import jax.numpy as jnp
 from transformers import PretrainedConfig
 
 from xtrain import models
 
+if TYPE_CHECKING:
+    import torch
 
-def get_dtype(torch_dtype: "str | torch.dtype") -> jnp.dtype:
+
+def get_dtype(dtype: "str | torch.dtype") -> jnp.dtype:
     "Convert torch dtype to jax dtype."
 
-    match str(torch_dtype):
+    match str(dtype):
         case "torch.float32":
             return jnp.float32
         case "torch.bfloat16":
@@ -16,7 +21,7 @@ def get_dtype(torch_dtype: "str | torch.dtype") -> jnp.dtype:
         case "torch.float16":
             return jnp.float16
         case _:
-            raise ValueError(f"Unsupported torch dtype: {torch_dtype}")
+            raise ValueError(f"Unsupported torch dtype: {dtype}")
 
 
 def get_model_class(config: PretrainedConfig) -> type[nnx.Module]:
