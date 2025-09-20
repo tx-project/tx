@@ -4,7 +4,12 @@ from transformers import PretrainedConfig
 from xtrain import models
 
 
-def get_model_class(config: PretrainedConfig) -> nnx.Module:
+def get_dtype(torch_dtype):
+    "Convert torch dtype to jax compatible dtype."
+    return str(torch_dtype).removeprefix("torch.")
+
+
+def get_model_class(config: PretrainedConfig) -> type[nnx.Module]:
     "Get the correct model class based on the config."
 
     for architecture in config.architectures or []:
