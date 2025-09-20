@@ -40,25 +40,20 @@ def get_model_class(config: PretrainedConfig) -> type[nnx.Module]:
     )
 
 
-def get_param_mapping(config: PretrainedConfig, model: nnx.Module) -> dict[tuple, str]:
-    "Get the mapping from model parameter paths to safetensors keys."
+def get_param_key(path: tuple) -> str:
+    "Get the safetensors key for a given model path."
 
-    def get_key(path: tuple) -> str:
-        if path[-1] in {"embedding", "kernel"}:
-            path = (*path[:-1], "weight")
-        return ".".join(map(str, path))
-
-    model_params = nnx.to_flat_state(nnx.state(model))
-    return {path: get_key(path) for path, _ in model_params}
+    if path[-1] in {"embedding", "kernel"}:
+        path = (*path[:-1], "weight")
+    return ".".join(map(str, path))
 
 
 def load_checkpoint(filename: str | os.PathLike, config: PretrainedConfig, model: nnx.Module) -> None:
-    param_mapping = get_param_mapping(config, model)
     tensors = safetensors.numpy.load_file(filename)
     model_params = nnx.to_flat_state(nnx.state(model))
     updates = []
     for path, param in model_params:
-        key = param_mapping[path]
+        key = get_param_key(path)
         tensors[key] = tensors[key] if "embed_tokens" in path else tensors[key].T
         if path[-2] in {"q_proj", "k_proj", "v_proj", "o_proj"}:
             tensors[key] = tensors[key].reshape(param.shape)
@@ -68,13 +63,12 @@ def load_checkpoint(filename: str | os.PathLike, config: PretrainedConfig, model
 
 
 def save_checkpoint(config: PretrainedConfig, model: nnx.Module, filename: str | os.PathLike) -> None:
-    param_mapping = get_param_mapping(config, model)
     model_params = nnx.to_flat_state(nnx.state(model))
     tensors = {}
     for path, param in model_params:
         if "rngs" in path:
             continue
-        key = param_mapping[path]
+        key = get_param_key(path)
         if "q_proj" in path or "k_proj" in path or "v_proj" in path:
             param = param.reshape(param.shape[0], -1)
         elif "o_proj" in path:
