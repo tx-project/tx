@@ -1,12 +1,22 @@
 from flax import nnx
+import jax.numpy as jnp
 from transformers import PretrainedConfig
 
 from xtrain import models
 
 
-def get_dtype(torch_dtype):
-    "Convert torch dtype to jax compatible dtype."
-    return str(torch_dtype).removeprefix("torch.")
+def get_dtype(torch_dtype: "str | torch.dtype") -> jnp.dtype:
+    "Convert torch dtype to jax dtype."
+
+    match str(torch_dtype):
+        case "torch.float32":
+            return jnp.float32
+        case "torch.bfloat16":
+            return jnp.bfloat16
+        case "torch.float16":
+            return jnp.float16
+        case _:
+            raise ValueError(f"Unsupported torch dtype: {torch_dtype}")
 
 
 def get_model_class(config: PretrainedConfig) -> type[nnx.Module]:
