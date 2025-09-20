@@ -7,7 +7,7 @@ import optax
 from transformers import AutoConfig, AutoTokenizer
 import typer
 
-from xtrain.utils import get_dtype, get_model_class, load_checkpoint, save_checkpoint
+from xtrain.utils import get_dtype, get_model_class, save_checkpoint
 
 app = typer.Typer()
 
@@ -41,8 +41,6 @@ def main(
     config = AutoConfig.from_pretrained(model_name)
     model_class = get_model_class(config)
     model = model_class(config, dtype=get_dtype(config.dtype), rngs=nnx.Rngs(0))
-
-    # load_checkpoint(Path(tmp) / "model.safetensors", config, model)
 
     optimizer = nnx.Optimizer(
         model, optax.adamw(0.002, weight_decay=0.1), wrt=nnx.Param
