@@ -48,14 +48,8 @@ def get_param_mapping(config: PretrainedConfig, model: nnx.Module) -> dict[tuple
             path = (*path[:-1], "weight")
         return ".".join(map(str, path))
 
-    param_mapping = {}
     model_params = nnx.to_flat_state(nnx.state(model))
-    for path, _ in model_params:
-        key = get_key(path)
-        if "lm_head" in path and config.tie_word_embeddings:
-            key = next((get_key(p) for p, _ in model_params if "embed_tokens" in p), key)
-        param_mapping[path] = key
-    return param_mapping
+    return {path: get_key(path) for path, _ in model_params}
 
 
 def load_checkpoint(filename: str | os.PathLike, config: PretrainedConfig, model: nnx.Module) -> None:
@@ -65,7 +59,7 @@ def load_checkpoint(filename: str | os.PathLike, config: PretrainedConfig, model
     updates = []
     for path, param in model_params:
         key = param_mapping[path]
-        tensors[key] = tensors[key].T
+        tensors[key] = tensors[key] if "embed_tokens" in path else tensors[key].T
         if path[-2] in {"q_proj", "k_proj", "v_proj", "o_proj"}:
             tensors[key] = tensors[key].reshape(param.shape)
         assert param.shape == tensors[key].shape, f"shape mismatch for {key}"
