@@ -51,7 +51,7 @@ def main(
     model_name: str = typer.Option(..., "--model", help="HuggingFace model ID or local model path"),
     dataset: str = typer.Option(..., "--dataset", help="HuggingFace dataset to use for training"),
     output_dir: Path = typer.Option(..., "--output-dir", help="The output directory where the model predictions and checkpoints will be written"),
-    max_steps: int = typer.Option(-1, "--max-steps", help="The maximum number of training steps"),
+    max_steps: int | None = typer.Option(None, "--max-steps", help="The maximum number of training steps"),
     per_device_batch_size: int = typer.Option(..., "--per-device-batch-size", help="Batch size per device accelerator for training."),
 ) -> None:
     train_dataset = load_dataset(dataset, split="train")
@@ -65,7 +65,7 @@ def main(
     )
 
     for step, data in enumerate(train_dataset.iter(batch_size=per_device_batch_size)):
-        if step >= max_steps:
+        if max_steps and step >= max_steps:
             break
 
         batch = {k: jnp.asarray(v) for k, v in tokenizer(data["text"], return_tensors="np", padding=True).items()}
