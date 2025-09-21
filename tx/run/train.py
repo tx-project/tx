@@ -1,4 +1,5 @@
 from pathlib import Path
+import sys
 
 from datasets import load_dataset
 import jax.numpy as jnp
@@ -37,9 +38,9 @@ def train(
     max_steps: int | None = typer.Option(None, "--max-steps", help="The maximum number of training steps"),
     per_device_batch_size: int = typer.Option(..., "--per-device-batch-size", help="Batch size per device accelerator for training"),
 ) -> None:
-    logger.info(f"Results will be saved to {output_dir}")
     output_dir.mkdir(parents=True, exist_ok=True)
     add_file_handler(output_dir / "tx.log")
+    logger.info(f"tx was invoked with 'tx {' '.join(sys.argv[1:])}'")
 
     train_dataset = load_dataset(dataset, split="train")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
