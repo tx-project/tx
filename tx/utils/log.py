@@ -8,7 +8,6 @@ def _setup_root_logger() -> None:
     logger = logging.getLogger("tx")
     logger.setLevel(logging.DEBUG)
     handler = RichHandler(
-        show_path=False,
         show_time=False,
         show_level=False,
         markup=True,
