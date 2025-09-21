@@ -66,7 +66,7 @@ def train(
             "target": batch["input_ids"][:, 1:],
         }
         loss = train_step(model, optimizer, input_batch)
-        logger.info(f"step: {step}, epoch: {step / num_batches}, loss: {loss}")
+        logger.info(f"step: {step}, epoch: {step / num_batches :.2e}, num_tokens: {batch['attention_mask'].sum()}, loss: {loss}")
 
         if step % save_steps == 0:
             save_checkpoint(config, model, output_dir / "model.safetensors")
