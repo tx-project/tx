@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tx"
-version = "0.0.1"
+dynamic = ["version"]
 description = "Cross-platform neural network training"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -26,6 +26,9 @@ dev = [
 
 [tool.setuptools]
 include-package-data = true
+
+[tool.setuptools.dynamic]
+version = {attr = "tx.__version__"}
 
 [project.scripts]
 tx = "tx.run.main:app"
