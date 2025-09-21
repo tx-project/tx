@@ -7,7 +7,8 @@ import optax
 from transformers import AutoConfig, AutoTokenizer
 import typer
 
-from tx.utils import get_dtype, get_model_class, save_checkpoint
+from tx.utils.models import get_dtype, get_model_class, save_checkpoint
+from tx.utils.log import add_file_handler, logger
 
 app = typer.Typer()
 
@@ -36,6 +37,10 @@ def train(
     max_steps: int | None = typer.Option(None, "--max-steps", help="The maximum number of training steps"),
     per_device_batch_size: int = typer.Option(..., "--per-device-batch-size", help="Batch size per device accelerator for training"),
 ) -> None:
+    logger.info(f"Results will be saved to {output_dir}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    add_file_handler(output_dir / "tx.log")
+
     train_dataset = load_dataset(dataset, split="train")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     config = AutoConfig.from_pretrained(model_name)
@@ -60,7 +65,7 @@ def train(
             "target": batch["input_ids"][:, 1:],
         }
         loss = train_step(model, optimizer, input_batch)
-        print("step", step, "loss", loss)
+        logger.info(f"step: {step}, loss: {loss}")
 
         if step % save_steps == 0:
             save_checkpoint(config, model, output_dir / "model.safetensors")
