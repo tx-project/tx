@@ -70,7 +70,8 @@ def train(
         logger.info(f"step: {step}, epoch: {step / num_steps :.2e}, num_tokens: {batch['attention_mask'].sum()}, loss: {loss}")
 
         if step % save_steps == 0:
+            logger.info(f"Saving chechpoint to {output_dir}")
             save_checkpoint(config, model, output_dir / "model.safetensors")
 
-    # Save final checkpoint
+    logger.info(f"Saving final chechpoint to {output_dir}")
     save_checkpoint(config, model, output_dir / "model.safetensors")
