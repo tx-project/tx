@@ -7,7 +7,7 @@ import optax
 from transformers import AutoConfig, AutoTokenizer
 import typer
 
-from xtrain.utils import get_dtype, get_model_class, save_checkpoint
+from tx.utils import get_dtype, get_model_class, save_checkpoint
 
 app = typer.Typer()
 

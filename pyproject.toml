@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "xtrain"
+name = "tx"
 version = "0.0.1"
 description = "Cross-platform neural network training"
 readme = "README.md"
@@ -28,4 +28,4 @@ dev = [
 include-package-data = true
 
 [project.scripts]
-xtrain = "xtrain.run.main:app"
+tx = "tx.run.main:app"
