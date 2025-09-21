@@ -26,8 +26,9 @@ def loss_fn(model, batch):
 def train_step(model, optimizer: nnx.Optimizer, batch):
     grad_fn = nnx.value_and_grad(loss_fn, has_aux=True)
     (loss, logits), grads = grad_fn(model, batch)
+    gradnorm = optax.global_norm(grads)
     optimizer.update(model, grads)
-    return loss
+    return loss, gradnorm
 
 
 def train(
@@ -66,8 +67,8 @@ def train(
             "attention_mask": batch["attention_mask"][:,:-1],
             "target": batch["input_ids"][:, 1:],
         }
-        loss = train_step(model, optimizer, input_batch)
-        logger.info(f"step: {step}, epoch: {step / num_steps :.2e}, num_tokens: {batch['attention_mask'].sum()}, loss: {loss}")
+        loss, gradnorm = train_step(model, optimizer, input_batch)
+        logger.info(f"step: {step}, epoch: {step / num_steps :.2e}, shape: {batch['input_ids'].shape}, tokens: {batch['attention_mask'].sum()}, gradnorm: {gradnorm}, loss: {loss}")
 
         if step % save_steps == 0:
             logger.info(f"Saving checkpoint to {output_dir}")
