@@ -68,7 +68,7 @@ def train(
             "target": batch["input_ids"][:, 1:],
         }
         loss, gradnorm = train_step(model, optimizer, input_batch)
-        logger.info(f"step: {step}, epoch: {step / num_steps :.2e}, shape: {batch['input_ids'].shape}, tokens: {batch['attention_mask'].sum()}, gradnorm: {gradnorm}, loss: {loss}")
+        logger.info(f"step: {step}, epoch: {step / num_steps :.2e}, shape: {batch['input_ids'].shape}, tokens: {batch['attention_mask'].sum()}, gradnorm: {gradnorm.item() :5.2f}, loss: {loss.item() :5.2f}")
 
         if step % save_steps == 0:
             logger.info(f"Saving checkpoint to {output_dir}")
