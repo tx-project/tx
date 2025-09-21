@@ -52,7 +52,7 @@ def train(
         model, optax.adamw(0.002, weight_decay=0.1), wrt=nnx.Param
     )
 
-    num_batches = len(train_dataset) / per_device_batch_size
+    num_steps = len(train_dataset) / per_device_batch_size
     for step, data in enumerate(train_dataset.iter(batch_size=per_device_batch_size)):
         if max_steps and step >= max_steps:
             break
@@ -67,7 +67,7 @@ def train(
             "target": batch["input_ids"][:, 1:],
         }
         loss = train_step(model, optimizer, input_batch)
-        logger.info(f"step: {step}, epoch: {step / num_batches :.2e}, num_tokens: {batch['attention_mask'].sum()}, loss: {loss}")
+        logger.info(f"step: {step}, epoch: {step / num_steps :.2e}, num_tokens: {batch['attention_mask'].sum()}, loss: {loss}")
 
         if step % save_steps == 0:
             save_checkpoint(config, model, output_dir / "model.safetensors")
