@@ -28,4 +28,4 @@ dev = [
 include-package-data = true
 
 [project.scripts]
-xtrain = "xtrain.run.sft:app"
+xtrain = "xtrain.run.main:app"
