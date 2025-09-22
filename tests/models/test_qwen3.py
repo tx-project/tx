@@ -4,7 +4,6 @@ import tempfile
 from flax import nnx
 import jax
 import jax.numpy as jnp
-from jax.sharding import Mesh
 import numpy as np
 import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
