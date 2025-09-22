@@ -2,6 +2,7 @@ from pathlib import Path
 import sys
 
 from datasets import load_dataset
+import jax
 import jax.numpy as jnp
 from flax import nnx
 import optax
@@ -47,11 +48,13 @@ def train(
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     config = AutoConfig.from_pretrained(model_name)
     model_class = get_model_class(config)
-    model = model_class(config, dtype=get_dtype(config.dtype), rngs=nnx.Rngs(0))
+    auto_mesh = jax.make_mesh((1, 4), ('dp', 'mp'))
+    with jax.set_mesh(auto_mesh):
+        model = model_class(config, dtype=get_dtype(config.dtype), rngs=nnx.Rngs(0))
 
-    optimizer = nnx.Optimizer(
-        model, optax.adamw(0.002, weight_decay=0.1), wrt=nnx.Param
-    )
+        optimizer = nnx.Optimizer(
+            model, optax.adamw(0.002, weight_decay=0.1), wrt=nnx.Param
+        )
 
     num_steps = len(train_dataset) / per_device_batch_size
     for step, data in enumerate(train_dataset.iter(batch_size=per_device_batch_size)):
