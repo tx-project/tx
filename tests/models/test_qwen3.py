@@ -12,7 +12,7 @@ from tx.utils.models import load_checkpoint
 
 
 def test_qwen3():
-    jax.config.update('jax_num_cpu_devices', 4)
+    jax.config.update('jax_num_cpu_devices', 2)
 
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
     hf_model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-0.6B", attn_implementation="eager", use_safetensors=True)
@@ -27,7 +27,7 @@ def test_qwen3():
         hf_model.save_pretrained(tmp, safe_serialization=True)
 
         config = AutoConfig.from_pretrained("Qwen/Qwen3-0.6B")
-        auto_mesh = jax.make_mesh((1, 4), ('dp', 'mp'))
+        auto_mesh = jax.make_mesh((1, 2), ('dp', 'mp'))
         with jax.set_mesh(auto_mesh):
             model = Qwen3ForCausalLM(config, dtype=jnp.float32, rngs=nnx.Rngs(0))
         load_checkpoint(Path(tmp) / "model.safetensors", config, model)
