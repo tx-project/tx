@@ -1,3 +1,4 @@
+from functools import partial
 from pathlib import Path
 import sys
 
@@ -9,10 +10,21 @@ import optax
 from transformers import AutoConfig, AutoTokenizer
 import typer
 
-from tx.utils.models import get_dtype, get_model_class, save_checkpoint
+from tx.utils.models import freeze_config, get_dtype, get_model_class, save_checkpoint, unfreeze_config
 from tx.utils.log import add_file_handler, logger
 
 app = typer.Typer()
+
+
+@partial(nnx.jit, static_argnames=["frozen_config", "model_class"])
+def create_model(frozen_config: str, model_class) -> nnx.Module:
+    config = unfreeze_config(frozen_config)
+    model = model_class(config, dtype=get_dtype(config.dtype), rngs=nnx.Rngs(0))
+    state = nnx.state(model)
+    pspecs = nnx.get_partition_spec(state)
+    sharded_state = jax.lax.with_sharding_constraint(state, pspecs)
+    nnx.update(model, sharded_state)
+    return model
 
 
 def loss_fn(model, batch):
@@ -40,6 +52,7 @@ def train(
     max_steps: int | None = typer.Option(None, "--max-steps", help="The maximum number of training steps"),
     per_device_batch_size: int = typer.Option(..., "--per-device-batch-size", help="Batch size per device accelerator for training"),
 ) -> None:
+    # jax.config.update('jax_num_cpu_devices', 4)
     output_dir.mkdir(parents=True, exist_ok=True)
     add_file_handler(output_dir / "tx.log")
     logger.info(f"tx was invoked with 'tx {' '.join(sys.argv[1:])}'")
@@ -48,13 +61,14 @@ def train(
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     config = AutoConfig.from_pretrained(model_name)
     model_class = get_model_class(config)
+
     auto_mesh = jax.make_mesh((1, 4), ('dp', 'mp'))
     with jax.set_mesh(auto_mesh):
-        model = model_class(config, dtype=get_dtype(config.dtype), rngs=nnx.Rngs(0))
+        model = create_model(freeze_config(config), model_class)
 
-        optimizer = nnx.Optimizer(
-            model, optax.adamw(0.002, weight_decay=0.1), wrt=nnx.Param
-        )
+    optimizer = nnx.Optimizer(
+        model, optax.adamw(0.002, weight_decay=0.1), wrt=nnx.Param
+    )
 
     num_steps = len(train_dataset) / per_device_batch_size
     for step, data in enumerate(train_dataset.iter(batch_size=per_device_batch_size)):

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
 import os
 from typing import TYPE_CHECKING
 
 from flax import nnx
 import jax.numpy as jnp
 import safetensors.numpy
-from transformers import PretrainedConfig
+from transformers import AutoConfig, PretrainedConfig
 
 from tx import models
 
@@ -75,3 +76,13 @@ def save_checkpoint(config: PretrainedConfig, model: nnx.Module, filename: str |
             param = param.reshape(-1, param.shape[-1])
         tensors[key] = param if "embed_tokens" in path else param.T
     safetensors.numpy.save_file(tensors, filename)
+
+
+def freeze_config(config: PretrainedConfig) -> str:
+    "Convert a config to a hashable type so it can be passed to jax.jit."
+    return json.dumps(config.to_dict(), sort_keys=True)
+
+
+def unfreeze_config(frozen_config: str) -> PretrainedConfig:
+    "Convert a config frozen by freeze_config back to its original value."
+    return AutoConfig.for_model(**json.loads(frozen_config))
