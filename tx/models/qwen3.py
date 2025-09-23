@@ -91,6 +91,7 @@ class Qwen3Attention(nnx.Module):
         
 
 class Qwen3MLP(nnx.Module):
+
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.gate_proj = nnx.Linear(
             config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype, rngs=rngs,
@@ -110,6 +111,7 @@ class Qwen3MLP(nnx.Module):
         
 
 class Qwen3DecoderLayer(nnx.Module):
+
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
         self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
@@ -146,6 +148,7 @@ class Qwen3DecoderLayer(nnx.Module):
 
 
 class Qwen3Model(nnx.Module):
+
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.config = config
         self.embed_tokens = nnx.Embed(

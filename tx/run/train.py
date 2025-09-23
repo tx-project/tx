@@ -21,8 +21,7 @@ def create_model(config: FrozenModelConfig, model_class) -> nnx.Module:
     config = config.unfreeze()
     model = model_class(config, dtype=get_dtype(config.dtype), rngs=nnx.Rngs(0))
     state = nnx.state(model)
-    pspecs = nnx.get_partition_spec(state)
-    sharded_state = jax.lax.with_sharding_constraint(state, pspecs)
+    sharded_state = jax.lax.with_sharding_constraint(state, nnx.get_partition_spec(state))
     nnx.update(model, sharded_state)
     return model
 
