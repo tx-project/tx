@@ -16,10 +16,11 @@ from tx.utils.models import load_checkpoint
 
 @pytest.mark.parametrize("tp", [1, 2])
 def test_qwen3(tp: int):
-    jax.config.update('jax_num_cpu_devices', tp)
+    if not jax._src.xla_bridge.backends_are_initialized():
+        jax.config.update("jax_num_cpu_devices", 2)
 
     if tp > 1 and os.getenv("CI"):
-        pytest.skip("TP = 2 currently runs out of memory in the CI")
+        pytest.skip("TP > 1 currently runs out of memory in the CI")
 
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
     hf_model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-0.6B", attn_implementation="eager", use_safetensors=True)
