@@ -120,7 +120,7 @@ class Qwen3DecoderLayer(nnx.Module):
         *,
         attention_mask: jax.Array | None = None,
         output_attentions: bool | None = None
-    ) -> tuple[jax.Array, ...]:
+    ) -> tuple[jax.Array]:
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
         hidden_states, self_attn_weights = self.self_attn(
@@ -164,7 +164,7 @@ class Qwen3Model(nnx.Module):
         attention_mask: jax.Array | None = None,
         output_hidden_states: bool | None = None,
         output_attentions: bool | None = None
-    ) -> dict:
+    ) -> dict: # TODO: fix return type
         output_hidden_states = output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         
@@ -195,6 +195,7 @@ class Qwen3Model(nnx.Module):
 
 
 class Qwen3ForCausalLM(nnx.Module):
+
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.config = config
         self.model = Qwen3Model(config, dtype=dtype, rngs=rngs)
@@ -211,7 +212,7 @@ class Qwen3ForCausalLM(nnx.Module):
         attention_mask: jax.Array | None = None,
         output_hidden_states: bool | None = None,
         output_attentions: bool | None = None
-    ) -> dict:
+    ) -> dict: # TODO: fix return type
         outputs = self.model(
             input_ids,
             attention_mask=attention_mask,
