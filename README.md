@@ -1,16 +1,16 @@
 # tx: Cross-Platform Transformer Training
 
 tx (**t**ransformers **x**-platform) is a JAX/OpenXLA-based library
-designed for training transformers and other neural networks. Built on
-OpenXLA, tx enables you to run the same code seamlessly across diverse
-hardware platforms like GPUs, TPUs, AWS Trainium, and Tenstorrent
-accelerators, without the complexity of adapting to platform-specific
-APIs or execution models like those found in PyTorch/XLA.
+designed for training transformers and other neural networks. Since it
+is based on OpenXLA, tx enables you to run the same code across
+diverse hardware platforms like GPUs, TPUs, AWS Trainium, and
+Tenstorrent accelerators, without the complexity of adapting to
+platform-specific APIs or execution models like you would need if you
+switch from PyTorch to PyTorch/XLA.
 
-Our philosophy centers on simplicity without sacrificing power. We've
-written the library to feel intuitive to developers coming from the
-PyTorch and Hugging Face ecosystems, making the transition to
-cross-platform training as smooth as possible.
+We try to keep the code simple but powerful and write the library in a
+way that feels intuitive to developers in the PyTorch and HuggingFace
+ecosystems.
 
 Key Benefits:
 - Write once, run anywhere: Single codebase that works across all major AI accelerators
