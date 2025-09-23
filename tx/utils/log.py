@@ -62,11 +62,11 @@ class WandbTracker(Tracker):
 
     def log(self, metrics: dict[str, Any], step: int | None = None) -> None:
         super().log(metrics, step)
-        if self.run and wandb is not None:
+        if wandb is not None:
             wandb.log(metrics, step=step)
 
     def __del__(self):
-        if self.run and wandb is not None:
+        if wandb is not None:
             wandb.finish()
 
 
