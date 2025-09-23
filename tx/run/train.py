@@ -10,15 +10,15 @@ import optax
 from transformers import AutoConfig, AutoTokenizer
 import typer
 
-from tx.utils.models import freeze_config, get_dtype, get_model_class, save_checkpoint, unfreeze_config
+from tx.utils.models import FrozenModelConfig, get_dtype, get_model_class, save_checkpoint
 from tx.utils.log import add_file_handler, logger
 
 app = typer.Typer()
 
 
-@partial(nnx.jit, static_argnames=["frozen_config", "model_class"])
-def create_model(frozen_config: str, model_class) -> nnx.Module:
-    config = unfreeze_config(frozen_config)
+@partial(nnx.jit, static_argnames=["config", "model_class"])
+def create_model(config: FrozenModelConfig, model_class) -> nnx.Module:
+    config = config.unfreeze()
     model = model_class(config, dtype=get_dtype(config.dtype), rngs=nnx.Rngs(0))
     state = nnx.state(model)
     pspecs = nnx.get_partition_spec(state)
@@ -66,7 +66,7 @@ def train(
 
     auto_mesh = jax.make_mesh((1, 4), ("dp", "tp"))
     with jax.set_mesh(auto_mesh):
-        model = create_model(freeze_config(config), model_class)
+        model = create_model(FrozenModelConfig(config), model_class)
 
     optimizer = nnx.Optimizer(
         model, optax.adamw(0.002, weight_decay=0.1), wrt=nnx.Param

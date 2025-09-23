@@ -78,11 +78,11 @@ def save_checkpoint(config: PretrainedConfig, model: nnx.Module, filename: str |
     safetensors.numpy.save_file(tensors, filename)
 
 
-def freeze_config(config: PretrainedConfig) -> str:
-    "Convert a config to a hashable type so it can be passed to jax.jit."
-    return json.dumps(config.to_dict(), sort_keys=True)
+class FrozenModelConfig:
+    "Frozen version of PretrainedConfig so it is hashable and can be passed to jax.jit."
 
+    def __init__(self, config: PretrainedConfig) -> None:
+        self.data = json.dumps(config.to_dict(), sort_keys=True)
 
-def unfreeze_config(frozen_config: str) -> PretrainedConfig:
-    "Convert a config frozen by freeze_config back to its original value."
-    return AutoConfig.for_model(**json.loads(frozen_config))
+    def unfreeze(self) -> PretrainedConfig:
+        return AutoConfig.for_model(**json.loads(self.data))
