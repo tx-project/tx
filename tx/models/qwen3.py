@@ -20,6 +20,7 @@ class RMSNorm(nnx.Module):
 
 
 class MultiHeadProj(nnx.Module):
+
     def __init__(self, subscripts: str, *shape: int, sharding: P, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.subscripts = subscripts
         self.weight = Param(*shape, dtype=dtype, kernel_init=nnx.with_partitioning(nnx.initializers.normal(), sharding), rngs=rngs)
@@ -38,6 +39,7 @@ def apply_rope(inputs: jax.Array, position_ids: jax.Array, head_dim: int, theta:
 
 
 class Qwen3Attention(nnx.Module):
+
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.config = config
         self.num_heads = config.num_attention_heads
@@ -58,7 +60,7 @@ class Qwen3Attention(nnx.Module):
         *,
         attention_mask: jax.Array | None = None,
         output_attentions: bool | None = None
-    ) -> tuple:
+    ) -> tuple: # TODO: fix return type
         q = self.q_norm(self.q_proj(x))
         k = self.k_norm(self.k_proj(x))
         v = self.v_proj(x)
