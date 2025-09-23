@@ -13,9 +13,9 @@ way that feels intuitive to developers in the PyTorch and HuggingFace
 ecosystems.
 
 Key Benefits:
-- Write once, run anywhere: Single codebase that works across all major AI accelerators
-- Familiar API: Designed with PyTorch and Hugging Face developers in mind
-- Clean and maintainable: Simple, powerful code that doesn't compromise on capability
+- **Write once, run anywhere**: Single codebase that works across all major AI accelerators
+- **Familiar conventions**: Designed with PyTorch and Hugging Face developers in mind
+- **Clean and maintainable**: Simple, powerful code that doesn't compromise on capability
 
 The code is very early, features we want to support going forward:
 - More flexible dataset support
