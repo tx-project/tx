@@ -50,9 +50,10 @@ def train(
     save_steps: int = typer.Option(500, "--save-steps", help="Number of steps between checkpoints"),
     max_steps: int | None = typer.Option(None, "--max-steps", help="The maximum number of training steps"),
     per_device_batch_size: int = typer.Option(..., "--per-device-batch-size", help="Batch size per device accelerator for training"),
+    tp_size: int = typer.Option(1, "--tp-size", help="Tensor parallelism degree to use for the model"),
 ) -> None:
-    # If you wanted to try parallelism on a CPU, you can uncomment this:
-    # jax.config.update('jax_num_cpu_devices', 4)
+    if not jax._src.xla_bridge.backends_are_initialized():
+        jax.config.update('jax_num_cpu_devices', tp_size)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     add_file_handler(output_dir / "tx.log")
@@ -63,7 +64,7 @@ def train(
     config = AutoConfig.from_pretrained(model_name)
     model_class = get_model_class(config)
 
-    auto_mesh = jax.make_mesh((1, 4), ("dp", "tp"))
+    auto_mesh = jax.make_mesh((1, tp_size), ("dp", "tp"))
     with jax.set_mesh(auto_mesh):
         model = create_model(FrozenModelConfig(config), model_class)
 
