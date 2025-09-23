@@ -94,15 +94,15 @@ class Qwen3MLP(nnx.Module):
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.gate_proj = nnx.Linear(
             config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype, rngs=rngs,
-            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp"))
+            kernel_init=nnx.with_partitioning(nnx.nn.linear.default_kernel_init, jax.P(None, "tp"))
         )
         self.up_proj = nnx.Linear(
             config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype, rngs=rngs,
-            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp"))
+            kernel_init=nnx.with_partitioning(nnx.nn.linear.default_kernel_init, jax.P(None, "tp"))
         )
         self.down_proj = nnx.Linear(
             config.intermediate_size, config.hidden_size, use_bias=False, dtype=dtype, param_dtype=dtype, rngs=rngs,
-            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P("tp", None))
+            kernel_init=nnx.with_partitioning(nnx.nn.linear.default_kernel_init, jax.P("tp", None))
         )
 
     def __call__(self, x: jax.Array) -> jax.Array:
@@ -206,7 +206,7 @@ class Qwen3ForCausalLM(nnx.Module):
         if not self.config.tie_word_embeddings:
             self.lm_head = nnx.Linear(
                 config.hidden_size, config.vocab_size, use_bias=False, dtype=dtype, param_dtype=dtype, rngs=rngs,
-                kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp"))
+                kernel_init=nnx.with_partitioning(nnx.nn.linear.default_kernel_init, jax.P(None, "tp"))
             )
 
     def __call__(
