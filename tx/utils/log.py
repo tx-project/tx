@@ -1,6 +1,6 @@
-from abc import ABC, abstractmethod
 from enum import Enum
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -57,7 +57,9 @@ class WandbTracker(Tracker):
 
     def __init__(self, config: dict[str, str]):
         if wandb is None:
-            raise RuntimeError("wandb needs to be installed")
+            raise RuntimeError("wandb not installed")
+        if not os.environ.get("WANDB_API_KEY"):
+            raise ValueError("WANDB_API_KEY environment variable not set")
         self.run = wandb.init(**config)
 
     def log(self, metrics: dict[str, Any], step: int | None = None) -> None:
