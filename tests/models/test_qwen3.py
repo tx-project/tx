@@ -35,7 +35,7 @@ def test_qwen3(tp: int):
         hf_model.save_pretrained(tmp, safe_serialization=True)
 
         config = AutoConfig.from_pretrained("Qwen/Qwen3-0.6B")
-        auto_mesh = jax.make_mesh((1, tp), ('dp', 'mp'))
+        auto_mesh = jax.make_mesh((1, tp), ("dp", "tp"))
         with jax.set_mesh(auto_mesh):
             model = Qwen3ForCausalLM(config, dtype=jnp.float32, rngs=nnx.Rngs(0))
         load_checkpoint(Path(tmp) / "model.safetensors", config, model)

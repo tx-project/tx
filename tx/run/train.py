@@ -52,7 +52,9 @@ def train(
     max_steps: int | None = typer.Option(None, "--max-steps", help="The maximum number of training steps"),
     per_device_batch_size: int = typer.Option(..., "--per-device-batch-size", help="Batch size per device accelerator for training"),
 ) -> None:
+    # If you wanted to try parallelism on a CPU, you can uncomment this:
     # jax.config.update('jax_num_cpu_devices', 4)
+
     output_dir.mkdir(parents=True, exist_ok=True)
     add_file_handler(output_dir / "tx.log")
     logger.info(f"tx was invoked with 'tx {' '.join(sys.argv[1:])}'")
@@ -62,7 +64,7 @@ def train(
     config = AutoConfig.from_pretrained(model_name)
     model_class = get_model_class(config)
 
-    auto_mesh = jax.make_mesh((1, 4), ('dp', 'mp'))
+    auto_mesh = jax.make_mesh((1, 4), ("dp", "tp"))
     with jax.set_mesh(auto_mesh):
         model = create_model(freeze_config(config), model_class)
 
