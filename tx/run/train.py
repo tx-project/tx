@@ -64,8 +64,8 @@ def train(
     config = AutoConfig.from_pretrained(model_name)
     model_class = get_model_class(config)
 
-    auto_mesh = jax.make_mesh((1, tp_size), ("dp", "tp"))
-    with jax.set_mesh(auto_mesh):
+    mesh = jax.make_mesh((1, tp_size), ("dp", "tp"))
+    with jax.set_mesh(mesh):
         model = create_model(FrozenModelConfig(config), model_class)
 
     optimizer = nnx.Optimizer(

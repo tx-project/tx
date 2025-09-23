@@ -93,16 +93,16 @@ class Qwen3MLP(nnx.Module):
 
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.gate_proj = nnx.Linear(
-            config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype, rngs=rngs,
-            kernel_init=nnx.with_partitioning(nnx.nn.linear.default_kernel_init, jax.P(None, "tp"))
+            config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype,
+            kernel_init=nnx.with_partitioning(nnx.nn.linear.default_kernel_init, jax.P(None, "tp")), rngs=rngs
         )
         self.up_proj = nnx.Linear(
-            config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype, rngs=rngs,
-            kernel_init=nnx.with_partitioning(nnx.nn.linear.default_kernel_init, jax.P(None, "tp"))
+            config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype,
+            kernel_init=nnx.with_partitioning(nnx.nn.linear.default_kernel_init, jax.P(None, "tp")), rngs=rngs
         )
         self.down_proj = nnx.Linear(
-            config.intermediate_size, config.hidden_size, use_bias=False, dtype=dtype, param_dtype=dtype, rngs=rngs,
-            kernel_init=nnx.with_partitioning(nnx.nn.linear.default_kernel_init, jax.P("tp", None))
+            config.intermediate_size, config.hidden_size, use_bias=False, dtype=dtype, param_dtype=dtype,
+            kernel_init=nnx.with_partitioning(nnx.nn.linear.default_kernel_init, jax.P("tp", None)), rngs=rngs
         )
 
     def __call__(self, x: jax.Array) -> jax.Array:
@@ -155,8 +155,8 @@ class Qwen3Model(nnx.Module):
             features=config.hidden_size,
             dtype=dtype,
             param_dtype=dtype,
-            rngs=rngs,
             embedding_init=nnx.with_partitioning(nnx.initializers.normal(), jax.P("tp", None)),
+            rngs=rngs,
         )
         self.layers = [Qwen3DecoderLayer(config, dtype=dtype, rngs=rngs) for _ in range(config.num_hidden_layers)]
         self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
@@ -205,8 +205,8 @@ class Qwen3ForCausalLM(nnx.Module):
         self.model = Qwen3Model(config, dtype=dtype, rngs=rngs)
         if not self.config.tie_word_embeddings:
             self.lm_head = nnx.Linear(
-                config.hidden_size, config.vocab_size, use_bias=False, dtype=dtype, param_dtype=dtype, rngs=rngs,
-                kernel_init=nnx.with_partitioning(nnx.nn.linear.default_kernel_init, jax.P(None, "tp"))
+                config.hidden_size, config.vocab_size, use_bias=False, dtype=dtype, param_dtype=dtype,
+                kernel_init=nnx.with_partitioning(nnx.nn.linear.default_kernel_init, jax.P(None, "tp")), rngs=rngs
             )
 
     def __call__(
