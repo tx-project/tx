@@ -52,8 +52,8 @@ def train(
     max_steps: int | None = typer.Option(None, "--max-steps", help="The maximum number of training steps"),
     per_device_batch_size: int = typer.Option(..., "--per-device-batch-size", help="Batch size per device accelerator for training"),
     tp_size: int = typer.Option(1, "--tp-size", help="Tensor parallelism degree to use for the model"),
-    report_to: ExperimentTracker | None = typer.Option(None, "--report-to", help="Experiment tracker to report results to"),
-    report_args: str = typer.Option("{}", "--report-args", help="Arguments that will be passed to the experiment tracker (in JSON format)"),
+    tracker_name: ExperimentTracker | None = typer.Option(None, "--tracker", help="Experiment tracker to report results to"),
+    tracker_args: str = typer.Option("{}", "--tracker-args", help="Arguments that will be passed to the experiment tracker (in JSON format)"),
 ) -> None:
     if not jax._src.xla_bridge.backends_are_initialized():
         jax.config.update('jax_num_cpu_devices', tp_size)
@@ -67,7 +67,7 @@ def train(
     train_dataset = load_dataset(dataset, split="train")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     config = AutoConfig.from_pretrained(model_name)
-    tracker = get_tracker(report_to, config, **json.loads(report_args))
+    tracker = get_tracker(tracker_name, config, **json.loads(tracker_args))
 
     model_class = get_model_class(config)
     mesh = jax.make_mesh((1, tp_size), ("dp", "tp"))
