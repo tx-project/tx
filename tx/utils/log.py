@@ -46,7 +46,7 @@ class ExperimentTracker(str, Enum):
 class Tracker:
 
     def __init__(self, config: dict[str, Any], **kwargs):
-        pass
+        logger.info(f"model config: {config}")
 
     def log(self, metrics: dict[str, Any], step: int | None = None) -> None:
         data = {"step": step, **metrics} if step else metrics
@@ -56,6 +56,7 @@ class Tracker:
 class WandbTracker(Tracker):
 
     def __init__(self, config: dict[str, Any], **kwargs):
+        super().__init__(config, **kwargs)
         if wandb is None:
             raise RuntimeError("wandb not installed")
         if not os.environ.get("WANDB_API_KEY"):

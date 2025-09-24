@@ -79,7 +79,7 @@ def train(
     )
 
     num_steps = len(train_dataset) / per_device_batch_size
-    for step, data in enumerate(train_dataset.filter(lambda item: item["text"] != "").shuffle(seed=13).iter(batch_size=per_device_batch_size)):
+    for step, data in enumerate(train_dataset.iter(batch_size=per_device_batch_size)):
         if max_steps and step >= max_steps:
             break
 
