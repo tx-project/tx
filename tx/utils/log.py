@@ -45,7 +45,7 @@ class ExperimentTracker(str, Enum):
 
 class Tracker:
 
-    def __init__(self, config: dict[str, str]):
+    def __init__(self, config: dict[str, Any], **params):
         pass
 
     def log(self, metrics: dict[str, Any], step: int | None = None) -> None:
@@ -55,12 +55,12 @@ class Tracker:
 
 class WandbTracker(Tracker):
 
-    def __init__(self, config: dict[str, str]):
+    def __init__(self, config: dict[str, Any], **params):
         if wandb is None:
             raise RuntimeError("wandb not installed")
         if not os.environ.get("WANDB_API_KEY"):
             raise ValueError("WANDB_API_KEY environment variable not set")
-        self.run = wandb.init(**config)
+        self.run = wandb.init(config=config, **params)
 
     def log(self, metrics: dict[str, Any], step: int | None = None) -> None:
         super().log(metrics, step)
@@ -72,12 +72,12 @@ class WandbTracker(Tracker):
             wandb.finish()
 
 
-def get_tracker(tracker: ExperimentTracker | None, config: dict[str, str]) -> Tracker:
+def get_tracker(tracker: ExperimentTracker | None, config: dict[str, Any], **params) -> Tracker:
     match tracker:
         case None:
-            return Tracker(config)
+            return Tracker(config, **params)
         case ExperimentTracker.wandb:
-            return WandbTracker(config)
+            return WandbTracker(config, **params)
         case _:
             raise ValueError(f"Unsupported experiment tracker: {tracker}")
 

@@ -53,21 +53,23 @@ def train(
     per_device_batch_size: int = typer.Option(..., "--per-device-batch-size", help="Batch size per device accelerator for training"),
     tp_size: int = typer.Option(1, "--tp-size", help="Tensor parallelism degree to use for the model"),
     report_to: ExperimentTracker | None = typer.Option(None, "--report-to", help="Experiment tracker to report results to"),
-    report_config: str = typer.Option("{}", "--report-config", help="Configuration that will be passed to the experiment tracker"),
+    report_params: str = typer.Option("{}", "--report-params", help="Parameters that will be passed to the experiment tracker (in JSON format)"),
 ) -> None:
     if not jax._src.xla_bridge.backends_are_initialized():
         jax.config.update('jax_num_cpu_devices', tp_size)
+        # If you want to debug NaNs, add the following:
+        # jax.config.update("jax_debug_nans", True)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     add_file_handler(output_dir / "tx.log")
     logger.info(f"tx was invoked with 'tx {' '.join(sys.argv[1:])}'")
-    tracker = get_tracker(report_to, json.loads(report_config))
 
     train_dataset = load_dataset(dataset, split="train")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     config = AutoConfig.from_pretrained(model_name)
-    model_class = get_model_class(config)
+    tracker = get_tracker(report_to, config, **json.loads(report_params))
 
+    model_class = get_model_class(config)
     mesh = jax.make_mesh((1, tp_size), ("dp", "tp"))
     with jax.set_mesh(mesh):
         model = create_model(FrozenModelConfig(config), model_class)
@@ -77,7 +79,7 @@ def train(
     )
 
     num_steps = len(train_dataset) / per_device_batch_size
-    for step, data in enumerate(train_dataset.iter(batch_size=per_device_batch_size)):
+    for step, data in enumerate(train_dataset.filter(lambda item: item["text"] != "").shuffle(seed=13).iter(batch_size=per_device_batch_size)):
         if max_steps and step >= max_steps:
             break
 
