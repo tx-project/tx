@@ -48,6 +48,7 @@ def train(
     model_name: str = typer.Option(..., "--model", help="HuggingFace model ID or local model path"),
     dataset: str = typer.Option(..., "--dataset", help="HuggingFace dataset to use for training"),
     loader_name: str = typer.Option("tx.loaders.text", "--loader", help="Loader used for loading the dataset"),
+    split: str = typer.Option("train", "--split", help="The dataset split to use"),
     output_dir: Path = typer.Option(..., "--output-dir", help="The output directory where the model predictions and checkpoints will be written"),
     save_steps: int = typer.Option(500, "--save-steps", help="Number of steps between checkpoints"),
     max_steps: int | None = typer.Option(None, "--max-steps", help="The maximum number of training steps"),
@@ -65,7 +66,7 @@ def train(
     add_file_handler(output_dir / "tx.log")
     logger.info(f"tx was invoked with 'tx {' '.join(sys.argv[1:])}'")
 
-    train_dataset = load_dataset(dataset, split="train")
+    train_dataset = load_dataset(dataset, split=split)
     config = AutoConfig.from_pretrained(model_name)
     tracker = get_tracker(tracker_name, config, **json.loads(tracker_args))
     loader = get_loader(loader_name)
