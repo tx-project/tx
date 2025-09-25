@@ -10,6 +10,7 @@ import optax
 from transformers import AutoConfig
 import typer
 
+from tx.loaders import text
 from tx.utils.models import FrozenModelConfig, get_dtype, get_model_class, save_checkpoint
 from tx.utils.log import ExperimentTracker, add_file_handler, get_tracker, logger
 
@@ -46,6 +47,7 @@ def train_step(model, optimizer: nnx.Optimizer, batch):
 def train(
     model_name: str = typer.Option(..., "--model", help="HuggingFace model ID or local model path"),
     dataset: str = typer.Option(..., "--dataset", help="HuggingFace dataset to use for training"),
+    # loader: DatasetLoader = typer.Option(),
     output_dir: Path = typer.Option(..., "--output-dir", help="The output directory where the model predictions and checkpoints will be written"),
     save_steps: int = typer.Option(500, "--save-steps", help="Number of steps between checkpoints"),
     max_steps: int | None = typer.Option(None, "--max-steps", help="The maximum number of training steps"),
@@ -77,7 +79,7 @@ def train(
     )
 
     num_steps = len(train_dataset) / batch_size
-    for step, (batch, metrics) in enumerate(train_dataset.iter(batch_size=batch_size)):
+    for step, (batch, metrics) in enumerate(text(config, train_dataset, batch_size)):
         if max_steps and step >= max_steps:
             break
 
