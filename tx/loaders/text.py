@@ -1,5 +1,6 @@
 import jax.numpy as jnp
-from transformers import AutoTokenizer, IterableDataset, PretrainedConfig
+from datasets import IterableDataset
+from transformers import AutoTokenizer, PretrainedConfig
 
 from tx.loaders import LoaderIterator
 
