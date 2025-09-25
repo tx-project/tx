@@ -2,7 +2,7 @@ import jax.numpy as jnp
 from datasets import IterableDataset
 from transformers import AutoTokenizer, PretrainedConfig
 
-from tx.loaders import LoaderIterator
+from tx.loaders.common import LoaderIterator
 
 
 def chat(config: PretrainedConfig, dataset: IterableDataset, batch_size: int) -> LoaderIterator:
