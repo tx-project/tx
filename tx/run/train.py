@@ -5,10 +5,9 @@ import sys
 
 from datasets import load_dataset
 import jax
-import jax.numpy as jnp
 from flax import nnx
 import optax
-from transformers import AutoConfig, AutoTokenizer
+from transformers import AutoConfig
 import typer
 
 from tx.utils.models import FrozenModelConfig, get_dtype, get_model_class, save_checkpoint
@@ -50,7 +49,7 @@ def train(
     output_dir: Path = typer.Option(..., "--output-dir", help="The output directory where the model predictions and checkpoints will be written"),
     save_steps: int = typer.Option(500, "--save-steps", help="Number of steps between checkpoints"),
     max_steps: int | None = typer.Option(None, "--max-steps", help="The maximum number of training steps"),
-    per_device_batch_size: int = typer.Option(..., "--per-device-batch-size", help="Batch size per device accelerator for training"),
+    batch_size: int = typer.Option(..., "--batch-size", help="Batch size of each training batch"),
     tp_size: int = typer.Option(1, "--tp-size", help="Tensor parallelism degree to use for the model"),
     tracker_name: ExperimentTracker | None = typer.Option(None, "--tracker", help="Experiment tracker to report results to"),
     tracker_args: str = typer.Option("{}", "--tracker-args", help="Arguments that will be passed to the experiment tracker (in JSON format)"),
@@ -65,7 +64,6 @@ def train(
     logger.info(f"tx was invoked with 'tx {' '.join(sys.argv[1:])}'")
 
     train_dataset = load_dataset(dataset, split="train")
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
     config = AutoConfig.from_pretrained(model_name)
     tracker = get_tracker(tracker_name, config, **json.loads(tracker_args))
 
@@ -78,22 +76,14 @@ def train(
         model, optax.adamw(0.002, weight_decay=0.1), wrt=nnx.Param
     )
 
-    num_steps = len(train_dataset) / per_device_batch_size
-    for step, data in enumerate(train_dataset.iter(batch_size=per_device_batch_size)):
+    num_steps = len(train_dataset) / batch_size
+    for step, (batch, metrics) in enumerate(train_dataset.iter(batch_size=batch_size)):
         if max_steps and step >= max_steps:
             break
 
-        # We pad to multiples of 128 here so jax needs to compile less different shapes
-        batch = tokenizer(data["text"], return_tensors="np", padding=True, pad_to_multiple_of=128)
-        batch = {k: jnp.asarray(v) for k, v in batch.items()}
         model.train()
-        input_batch = {
-            "text": batch["input_ids"][:,:-1],
-            "attention_mask": batch["attention_mask"][:,:-1],
-            "target": batch["input_ids"][:, 1:],
-        }
-        loss, gradnorm = train_step(model, optimizer, input_batch)
-        tracker.log({"epoch": step / num_steps, "shape": batch['input_ids'].shape, "tokens": batch['attention_mask'].sum(), "gradnorm": gradnorm.item(), "loss": loss.item()}, step)
+        loss, gradnorm = train_step(model, optimizer, batch)
+        tracker.log({"epoch": step / num_steps, **metrics, "gradnorm": gradnorm.item(), "loss": loss.item()}, step)
 
         if step % save_steps == 0:
             logger.info(f"Saving checkpoint to {output_dir}")
