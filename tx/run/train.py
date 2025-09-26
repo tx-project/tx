@@ -1,4 +1,3 @@
-from functools import partial
 import json
 from pathlib import Path
 import sys

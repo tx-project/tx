@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -8,7 +7,7 @@ from typing import TYPE_CHECKING
 from flax import nnx
 import jax.numpy as jnp
 import safetensors.numpy
-from transformers import AutoConfig, PretrainedConfig
+from transformers import PretrainedConfig
 
 from tx import models
 
