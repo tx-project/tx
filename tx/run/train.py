@@ -11,20 +11,10 @@ from transformers import AutoConfig
 import typer
 
 from tx.loaders import get_loader
-from tx.utils.models import FrozenModelConfig, get_dtype, get_model_class, load_checkpoint, save_checkpoint
+from tx.utils.models import get_dtype, get_model_class, load_checkpoint, save_checkpoint
 from tx.utils.log import ExperimentTracker, add_file_handler, get_tracker, logger
 
 app = typer.Typer()
-
-
-@partial(nnx.jit, static_argnames=["config", "model_class"])
-def create_model(config: FrozenModelConfig, model_class) -> nnx.Module:
-    config = config.unfreeze()
-    model = model_class(config, dtype=get_dtype(config.dtype), rngs=nnx.Rngs(0))
-    state = nnx.state(model)
-    sharded_state = jax.lax.with_sharding_constraint(state, nnx.get_partition_spec(state))
-    nnx.update(model, sharded_state)
-    return model
 
 
 def loss_fn(model, batch):
@@ -76,7 +66,7 @@ def train(
     model_class = get_model_class(config)
     mesh = jax.make_mesh((1, tp_size), ("dp", "tp"))
     with jax.set_mesh(mesh):
-        model = create_model(FrozenModelConfig(config), model_class)
+        model = model_class(config, dtype=get_dtype(config.dtype), rngs=nnx.Rngs(0))
 
     optimizer = nnx.Optimizer(
         model, optax.adamw(**json.loads(optimizer_args)), wrt=nnx.Param
