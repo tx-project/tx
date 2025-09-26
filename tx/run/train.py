@@ -11,7 +11,7 @@ from transformers import AutoConfig
 import typer
 
 from tx.loaders import get_loader
-from tx.utils.models import FrozenModelConfig, get_dtype, get_model_class, save_checkpoint
+from tx.utils.models import FrozenModelConfig, get_dtype, get_model_class, load_checkpoint, save_checkpoint
 from tx.utils.log import ExperimentTracker, add_file_handler, get_tracker, logger
 
 app = typer.Typer()
@@ -50,9 +50,11 @@ def train(
     loader_name: str = typer.Option("tx.loaders.text", "--loader", help="Loader used for loading the dataset"),
     split: str = typer.Option("train", "--split", help="The dataset split to use"),
     output_dir: Path = typer.Option(..., "--output-dir", help="The output directory where the model predictions and checkpoints will be written"),
+    load_checkpoint_path: Path | None = typer.Option(None, "--load-checkpoint-path", help="If specified, resume training from this checkpoint"),
     save_steps: int = typer.Option(500, "--save-steps", help="Number of steps between checkpoints"),
     max_steps: int | None = typer.Option(None, "--max-steps", help="The maximum number of training steps"),
     batch_size: int = typer.Option(..., "--batch-size", help="Batch size of each training batch"),
+    optimizer_args: str = typer.Option('{"learning_rate": 1e-5, "weight_decay": 0.1}', "--optimizer-args", help="Arguments for the optax optimizer"),
     tp_size: int = typer.Option(1, "--tp-size", help="Tensor parallelism degree to use for the model"),
     tracker_name: ExperimentTracker | None = typer.Option(None, "--tracker", help="Experiment tracker to report results to"),
     tracker_args: str = typer.Option("{}", "--tracker-args", help="Arguments that will be passed to the experiment tracker (in JSON format)"),
@@ -77,8 +79,11 @@ def train(
         model = create_model(FrozenModelConfig(config), model_class)
 
     optimizer = nnx.Optimizer(
-        model, optax.adamw(0.002, weight_decay=0.1), wrt=nnx.Param
+        model, optax.adamw(**json.loads(optimizer_args)), wrt=nnx.Param
     )
+
+    if load_checkpoint_path:
+        load_checkpoint(load_checkpoint_path, config, model)
 
     num_steps = len(train_dataset) / batch_size
     for step, (batch, metrics) in enumerate(loader(config, train_dataset, batch_size)):

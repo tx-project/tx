@@ -9,9 +9,10 @@ def chat(config: PretrainedConfig, dataset: IterableDataset, batch_size: int) ->
     "Data loader that applies the chat template. It returns an iterator over (batch, metrics) elements."
 
     tokenizer = AutoTokenizer.from_pretrained(config.name_or_path)
-    for data in dataset.iter(batch_size=batch_size):
-        # We pad to multiples of 128 here so jax needs to compile less different shapes
-        batch = tokenizer.apply_chat_template(data["messages"], tokenize=True, return_tensors="np", padding=True, pad_to_multiple_of=128, return_dict=True)
+    for data in dataset.shuffle().iter(batch_size=batch_size):
+        batch = tokenizer.apply_chat_template(data["messages"], tokenize=False)
+        # We pad to multiples of 512 here so jax needs to compile less different shapes
+        batch = tokenizer(batch, return_tensors="np", padding=True, pad_to_multiple_of=512)
         batch = {k: jnp.asarray(v) for k, v in batch.items()}
         yield {
             "text": batch["input_ids"][:,:-1],
