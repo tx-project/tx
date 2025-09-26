@@ -66,10 +66,9 @@ def train(
     mesh = jax.make_mesh((1, tp_size), ("dp", "tp"))
     with jax.set_mesh(mesh):
         model = model_class(config, dtype=get_dtype(config.dtype), rngs=nnx.Rngs(0))
-
-    optimizer = nnx.Optimizer(
-        model, optax.adamw(**json.loads(optimizer_args)), wrt=nnx.Param
-    )
+        optimizer = nnx.Optimizer(
+            model, optax.adamw(**json.loads(optimizer_args)), wrt=nnx.Param
+        )
 
     if load_checkpoint_path:
         load_checkpoint(load_checkpoint_path, config, model)
