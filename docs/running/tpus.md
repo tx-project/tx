@@ -1,22 +1,22 @@
 # Running on TPUs
 
-Currently we show how to run `tx` on a single TPU machine.
+Currently we only have instructions how to run `tx` on a single TPU VM. Multi-node instructions will be added later.
 
 ## Setting up the TPU VM
 
-We use [queued resources](https://cloud.google.com/tpu/docs/queued-resources) to start the VM since it seems to be the recommended way:
+First start the TPU VM:
 
 ```bash
-gcloud compute tpus queued-resources create <TPU_PREFIX> --project=<PROJECT> --zone=<ZONE> --accelerator-type=v6e-16 --runtime-version=v2-alpha-tpuv6e --node-count=1 --node-prefix=<TPU_PREFIX> --scopes=https://www.googleapis.com/auth/cloud-platform.read-only,https://www.googleapis.com/auth/devstorage.read_write --network=<NETWORK> --subnetwork=<SUBNETWORK> --spot
+gcloud compute tpus tpu-vm create <TPU_NAME> --project=<PROJECT> --zone=<ZONE> --accelerator-type=v6e-8 --version=v2-alpha-tpuv6e --scopes=https://www.googleapis.com/auth/cloud-platform.read-only,https://www.googleapis.com/auth/devstorage.read_write --network=<NETWORK> --subnetwork=<SUBNETWORK> --spot
 ```
 
 After the VM is started, you can ssh into it via
 
 ```bash
-gcloud compute tpus tpu-vm ssh <TPU_PREFIX>-0
+gcloud compute tpus tpu-vm ssh <TPU_NAME>
 ```
 
-## Starting the training
+## Setting up tx
 
 Once you are logged into the VM, install `uv` and clone the repository with
 
@@ -26,10 +26,20 @@ git clone https://github.com/tx-project/tx
 cd tx
 ```
 
+## Starting the training
+
+Next, download the dataset with
+
+```bash
+uv run --with huggingface_hub hf download Qwen/Qwen3-4B --local-dir /tmp/qwen3
+```
+
 You can then start the training with
 
 ```bash
-
+uv run --extra tpu --with jinja2 tx train --model Qwen/Qwen3-4B --dataset HuggingFaceH4/ultrachat_200k --loader tx.loaders.chat --split train_sft --output-dir /tmp/ultrachat --batch-size 8 --load-checkpoint-path /tmp/qwen3 --tp-size 8
 ```
+
+Note that at the beginning the training is a little slow since the JIT compiler needs to compile kernels for the various shapes.
 
 See more the full set of options in [the CLI reference](../reference.md).
