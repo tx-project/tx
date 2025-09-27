@@ -2,9 +2,6 @@ site_name: tx documentation
 theme:
   name: material
 
-markdown_extensions:
-    - mkdocs-typer
-
 nav:
   - "Overview": index.md
   - "CLI Reference": reference.md
