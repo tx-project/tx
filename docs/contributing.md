@@ -1,4 +1,4 @@
-# ❤️  Contributing
+# Contributing
 
 We happily accept contributions!
 
@@ -15,3 +15,6 @@ You can build and view the documentation by running the following in the project
 ```bash
 uv run --extra dev mkdocs serve
 ```
+
+The commands in [the CI workflow](https://github.com/tx-project/tx/tree/main/.github/workflows)
+are the best source of useful commands to run during development.
