@@ -23,6 +23,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocs-typer",
     "pytest",
     "torch",
 ]
