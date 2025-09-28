@@ -1,3 +1,5 @@
+from typing import List, Optional, Union
+
 from flax import nnx
 import jax
 from jax import numpy as jnp
@@ -59,7 +61,7 @@ class Qwen3Attention(nnx.Module):
         *,
         attention_mask: jax.Array | None = None,
         output_attentions: bool | None = None
-    ) -> tuple: # TODO: fix return type
+    ) -> tuple[jax.Array, Optional[jax.Array]]:
         q = self.q_norm(self.q_proj(x))
         k = self.k_norm(self.k_proj(x))
         v = self.v_proj(x)
@@ -85,6 +87,9 @@ class Qwen3Attention(nnx.Module):
         attn_weights = jnp.where(causal_mask == 0, -jnp.inf, attn_weights)
         attn_weights = nnx.softmax(attn_weights, axis=-1)
         attn_output = jnp.einsum("BNMT,BTNH->BMNH", attn_weights, v)
+
+        if not output_attentions:
+            attn_weights = None
 
         return self.o_proj(attn_output), attn_weights
         
@@ -123,7 +128,7 @@ class Qwen3DecoderLayer(nnx.Module):
         *,
         attention_mask: jax.Array | None = None,
         output_attentions: bool | None = None
-    ) -> tuple[jax.Array]:
+    ) -> tuple[jax.Array, Optional[jax.Array]]:
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
         hidden_states, self_attn_weights = self.self_attn(
@@ -138,12 +143,7 @@ class Qwen3DecoderLayer(nnx.Module):
         hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
 
-        outputs = (hidden_states,)
-
-        if output_attentions:
-            outputs += (self_attn_weights,)
-        
-        return outputs
+        return hidden_states, self_attn_weights if output_attentions else None
 
 
 class Qwen3Model(nnx.Module):
@@ -168,24 +168,36 @@ class Qwen3Model(nnx.Module):
         attention_mask: jax.Array | None = None,
         output_hidden_states: bool | None = None,
         output_attentions: bool | None = None
-    ) -> dict: # TODO: fix return type
-        output_hidden_states = output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        
+    ) -> dict[str, Union[jax.Array, List[jax.Array], None]]:
+        output_hidden_states = (
+            output_hidden_states
+            if output_hidden_states is not None
+            else self.config.output_hidden_states
+        )
+        output_attentions = (
+            output_attentions
+            if output_attentions is not None
+            else self.config.output_attentions
+        )
+
         hidden_states = self.embed_tokens(input_ids)
 
-        all_hidden_states = []
-        all_self_attns = []
-        
+        all_hidden_states: Optional[List[jax.Array]] = [] if output_hidden_states else None
+        all_self_attns: Optional[List[jax.Array]] = [] if output_attentions else None
+
         for layer in self.layers:
             if output_hidden_states:
                 all_hidden_states.append(hidden_states)
 
-            layer_outputs = layer(hidden_states, attention_mask=attention_mask, output_attentions=output_attentions)
-            hidden_states = layer_outputs[0]
+            layer_hidden_states, layer_attentions = layer(
+                hidden_states,
+                attention_mask=attention_mask,
+                output_attentions=output_attentions,
+            )
+            hidden_states = layer_hidden_states
 
             if output_attentions:
-                all_self_attns.append(layer_outputs[1])
+                all_self_attns.append(layer_attentions)
 
         hidden_states = self.norm(hidden_states)
         if output_hidden_states:
@@ -216,7 +228,7 @@ class Qwen3ForCausalLM(nnx.Module):
         attention_mask: jax.Array | None = None,
         output_hidden_states: bool | None = None,
         output_attentions: bool | None = None
-    ) -> dict: # TODO: fix return type
+    ) -> dict[str, Union[jax.Array, List[jax.Array], None]]:
         outputs = self.model(
             input_ids,
             attention_mask=attention_mask,
