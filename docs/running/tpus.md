@@ -42,4 +42,10 @@ uv run --extra tpu --with jinja2 tx train --model Qwen/Qwen3-4B --dataset Huggin
 
 Note that at the beginning the training is a little slow since the JIT compiler needs to compile kernels for the various shapes.
 
-See more the full set of options in [the CLI reference](../reference.md).
+See the full set of options of `tx` in [the CLI reference](../reference.md).
+
+You can visualize TPU usage with
+
+```bash
+uv run --with libtpu --with git+https://github.com/google/cloud-accelerator-diagnostics/#subdirectory=tpu_info tpu-info
+```
