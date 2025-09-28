@@ -1,4 +1,4 @@
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from flax import nnx
 import jax
@@ -168,7 +168,7 @@ class Qwen3Model(nnx.Module):
         attention_mask: jax.Array | None = None,
         output_hidden_states: bool | None = None,
         output_attentions: bool | None = None
-    ) -> dict[str, Union[jax.Array, List[jax.Array], None]]:
+    ) -> dict[str, jax.Array | List[jax.Array] | None]:
         output_hidden_states = (
             output_hidden_states
             if output_hidden_states is not None
@@ -228,7 +228,7 @@ class Qwen3ForCausalLM(nnx.Module):
         attention_mask: jax.Array | None = None,
         output_hidden_states: bool | None = None,
         output_attentions: bool | None = None
-    ) -> dict[str, Union[jax.Array, List[jax.Array], None]]:
+    ) -> dict[str, jax.Array | List[jax.Array] | None]:
         outputs = self.model(
             input_ids,
             attention_mask=attention_mask,
