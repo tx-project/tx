@@ -107,6 +107,75 @@ class Qwen3MLP(nnx.Module):
 
     def __call__(self, x: jax.Array) -> jax.Array:
         return self.down_proj(nnx.silu(self.gate_proj(x)) * self.up_proj(x))
+
+
+class Qwen3MoE(nnx.Module):
+
+    def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
+        self.config = config
+
+        self.gate = nnx.Linear(
+            config.hidden_size,
+            config.num_experts,
+            use_bias=False,
+            dtype=dtype,
+            param_dtype=dtype,
+            kernel_init=nnx.with_partitioning(nnx.nn.linear.default_kernel_init, jax.P(None, "tp")),
+            rngs=rngs,
+        )
+
+        # Expert weights for the SwiGLU MLP.
+        # Assumes an expert parallelism axis named 'ep' exists in the mesh.
+        self.gate_proj = Param(
+            config.num_experts, config.hidden_size, self.config.intermediate_size,
+            dtype=dtype,
+            kernel_init=nnx.with_partitioning(nnx.initializers.normal(), jax.P("ep", None, "tp")),
+            rngs=rngs
+        )
+        self.up_proj = Param(
+            config.num_experts, config.hidden_size, self.config.intermediate_size,
+            dtype=dtype,
+            kernel_init=nnx.with_partitioning(nnx.initializers.normal(), jax.P("ep", None, "tp")),
+            rngs=rngs
+        )
+        self.down_proj = Param(
+            config.num_experts, self.config.intermediate_size, config.hidden_size,
+            dtype=dtype,
+            kernel_init=nnx.with_partitioning(nnx.initializers.normal(), jax.P("ep", "tp", None)),
+            rngs=rngs
+        )
+
+    def __call__(self, x: jax.Array) -> jax.Array:
+        original_shape = x.shape
+        num_tokens = original_shape[0] * original_shape[1]
+        x_reshaped = x.reshape(num_tokens, self.config.hidden_size)
+
+        # 1. Select top-k experts for each token
+        router_logits = self.gate(x_reshaped)
+        top_k_logits, selected_experts = jax.lax.top_k(router_logits, self.config.num_experts_per_tok)
+        router_weights = nnx.softmax(top_k_logits, axis=-1)
+
+        # 2. Prepare for ragged_dot by sorting tokens based on their assigned expert
+        flat_selected_experts = selected_experts.flatten()
+        sort_indices = jnp.argsort(flat_selected_experts)
+        unsort_indices = jnp.argsort(sort_indices)
+        
+        repeated_x = jnp.repeat(x_reshaped, self.config.num_experts_per_tok, axis=0)
+        sorted_x = repeated_x[sort_indices]
+        group_sizes = jnp.bincount(flat_selected_experts, length=self.config.num_experts)
+
+        # 3. Apply expert MLPs using ragged_dot for sparse matrix multiplication
+        gate_out = jax.lax.ragged_dot(sorted_x, self.gate_proj, group_sizes)
+        up_out = jax.lax.ragged_dot(sorted_x, self.up_proj, group_sizes)
+        activated = nnx.silu(gate_out) * up_out
+        down_out = jax.lax.ragged_dot(activated, self.down_proj, group_sizes)
+
+        # 4. Unsort and combine the expert outputs
+        unsorted_out = down_out[unsort_indices]
+        reshaped_out = unsorted_out.reshape(num_tokens, self.config.num_experts_per_tok, self.config.hidden_size)
+        weighted_sum_out = (reshaped_out * router_weights[..., None]).sum(axis=1)
+
+        return weighted_sum_out.reshape(original_shape)
         
 
 class Qwen3DecoderLayer(nnx.Module):
