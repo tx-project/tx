@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 
 from flax import nnx
 import jax
@@ -168,7 +168,7 @@ class Qwen3Model(nnx.Module):
         attention_mask: jax.Array | None = None,
         output_hidden_states: bool | None = None,
         output_attentions: bool | None = None
-    ) -> dict[str, jax.Array | List[jax.Array] | None]:
+    ) -> dict[str, jax.Array | list[jax.Array] | None]:
         output_hidden_states = (
             output_hidden_states
             if output_hidden_states is not None
@@ -182,8 +182,8 @@ class Qwen3Model(nnx.Module):
 
         hidden_states = self.embed_tokens(input_ids)
 
-        all_hidden_states: Optional[List[jax.Array]] = [] if output_hidden_states else None
-        all_self_attns: Optional[List[jax.Array]] = [] if output_attentions else None
+        all_hidden_states: Optional[list[jax.Array]] = [] if output_hidden_states else None
+        all_self_attns: Optional[list[jax.Array]] = [] if output_attentions else None
 
         for layer in self.layers:
             if output_hidden_states:
@@ -228,7 +228,7 @@ class Qwen3ForCausalLM(nnx.Module):
         attention_mask: jax.Array | None = None,
         output_hidden_states: bool | None = None,
         output_attentions: bool | None = None
-    ) -> dict[str, jax.Array | List[jax.Array] | None]:
+    ) -> dict[str, jax.Array | list[jax.Array] | None]:
         outputs = self.model(
             input_ids,
             attention_mask=attention_mask,
