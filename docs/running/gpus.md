@@ -27,4 +27,6 @@ You can then start the training with
 uv run --extra gpu --with jinja2 tx train --model Qwen/Qwen3-4B --dataset HuggingFaceH4/ultrachat_200k --loader tx.loaders.chat --split train_sft --output-dir /tmp/ultrachat --batch-size 8 --load-checkpoint-path /tmp/qwen3 --tp-size 8
 ```
 
+In this example we assume you have 8 GPUs in the node. If you have a different number of GPUs, you can modify the `--tp-size` parameter appropriately.
+
 See the full set of options of `tx` in [the CLI reference](../reference.md).
