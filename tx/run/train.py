@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 import sys
-from typing import NotRequired, TypedDict
 
 from datasets import Dataset, load_dataset
 import jax
@@ -45,7 +44,7 @@ def train(
     max_steps: int | None = typer.Option(None, "--max-steps", help="The maximum number of training steps"),
     batch_size: int = typer.Option(..., "--batch-size", help="Batch size of each training batch"),
     optimizer_name: OptimizerName = typer.Option("adamw", "--optimizer", help="Which optax optimizer to use"),
-    optimizer_args: dict = typer.Option('{"learning_rate": 1e-5, "weight_decay": 0.1}', "--optimizer-args", help="Arguments for the optax optimizer", parser=json.loads),
+    optimizer_args: dict = typer.Option('{"learning_rate": 1e-5, "weight_decay": 0.1}', "--optimizer-args", help="Arguments for the optax optimizer (in JSON format)", parser=json.loads),
     tp_size: int = typer.Option(1, "--tp-size", help="Tensor parallelism degree to use for the model"),
     tracker_name: ExperimentTracker | None = typer.Option(None, "--tracker", help="Experiment tracker to report results to"),
     tracker_args: dict = typer.Option("{}", "--tracker-args", help="Arguments that will be passed to the experiment tracker (in JSON format)", parser=json.loads),
