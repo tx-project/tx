@@ -143,7 +143,7 @@ class Qwen3DecoderLayer(nnx.Module):
         hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
 
-        return hidden_states, self_attn_weights if output_attentions else None
+        return hidden_states, self_attn_weights
 
 
 class Qwen3Model(nnx.Module):
@@ -168,7 +168,7 @@ class Qwen3Model(nnx.Module):
         attention_mask: jax.Array | None = None,
         output_hidden_states: bool | None = None,
         output_attentions: bool | None = None
-    ) -> dict[str, jax.Array | list[jax.Array] | None]:
+    ) -> dict[str, jax.Array | list[jax.Array]]:
         output_hidden_states = (
             output_hidden_states
             if output_hidden_states is not None
@@ -182,22 +182,21 @@ class Qwen3Model(nnx.Module):
 
         hidden_states = self.embed_tokens(input_ids)
 
-        all_hidden_states: Optional[list[jax.Array]] = [] if output_hidden_states else None
-        all_self_attns: Optional[list[jax.Array]] = [] if output_attentions else None
+        all_hidden_states: list[jax.Array] = []
+        all_self_attns: list[jax.Array] = []
 
         for layer in self.layers:
             if output_hidden_states:
                 all_hidden_states.append(hidden_states)
 
-            layer_hidden_states, layer_attentions = layer(
+            hidden_states, self_attns = layer(
                 hidden_states,
                 attention_mask=attention_mask,
                 output_attentions=output_attentions,
             )
-            hidden_states = layer_hidden_states
 
             if output_attentions:
-                all_self_attns.append(layer_attentions)
+                all_self_attns.append(self_attns)
 
         hidden_states = self.norm(hidden_states)
         if output_hidden_states:
