@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from enum import Enum
 import os
 from pathlib import Path
 from typing import Callable, TYPE_CHECKING
 
 from flax import nnx
 import jax.numpy as jnp
+import optax
 import safetensors.numpy
 from transformers import PretrainedConfig
 
@@ -78,3 +80,20 @@ def save_checkpoint(config: PretrainedConfig, model: nnx.Module, filename: str |
             param = param.reshape(-1, param.shape[-1])
         tensors[key] = param if "embed_tokens" in path else param.T
     safetensors.numpy.save_file(tensors, filename)
+
+
+class OptimizerName(str, Enum):
+    adamw = "adamw"
+
+
+def get_optimizer(optimizer_name: OptimizerName, optimizer_args: dict) -> optax.GradientTransformation:
+    match optimizer_args:
+        case {"learning_rate": learning_rate, **kwargs}:
+            pass
+        case _:
+            raise ValueError("The 'learning_rate' key must be provided in optimizer_args.")
+    match optimizer_name:
+        case OptimizerName.adamw:
+            return optax.adamw(learning_rate, **kwargs)
+        case _:
+            raise ValueError(f"Unsupported optimizer: {optimizer_name}")
