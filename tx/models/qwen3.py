@@ -227,7 +227,7 @@ class Qwen3ForCausalLM(nnx.Module):
         attention_mask: jax.Array | None = None,
         output_hidden_states: bool | None = None,
         output_attentions: bool | None = None
-    ) -> dict[str, jax.Array | list[jax.Array] | None]:
+    ) -> dict[str, jax.Array | list[jax.Array]]:
         outputs = self.model(
             input_ids,
             attention_mask=attention_mask,
