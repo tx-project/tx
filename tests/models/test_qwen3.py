@@ -57,6 +57,15 @@ def test_qwen3_moe():
 
     moe = hf_model.model.layers[0].mlp
     print("hf_model.moe", moe)
-    x = torch.zeros(1, 2, 8)
-    print("y", moe.forward(x))
+    x = torch.randn(1, 2, 8)
+    final_hidden_states, router_logits = moe.forward(x)
+    print("final_hidden_states", final_hidden_states)
     # print("hf_outputs", hf_outputs)
+    print("final_hidden_states.shape", final_hidden_states.shape)
+
+    from tx.models.qwen3 import Qwen3MoE
+    config = AutoConfig.from_pretrained("trl-internal-testing/tiny-Qwen3MoeForCausalLM")
+    mesh = jax.make_mesh((1, 1), ("dp", "tp"))
+    with jax.set_mesh(mesh):
+        moe_layer = Qwen3MoE(config, dtype=jnp.float32, rngs=nnx.Rngs(0))
+    output = moe_layer(x.numpy())
