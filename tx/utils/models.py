@@ -87,13 +87,10 @@ class OptimizerName(str, Enum):
 
 
 def get_optimizer(optimizer_name: OptimizerName, optimizer_args: dict) -> optax.GradientTransformation:
-    match optimizer_args:
-        case {"learning_rate": learning_rate, **kwargs}:
-            pass
+    match (optimizer_name, optimizer_args):
+        case (OptimizerName.adamw, {"learning_rate": lr, **kwargs}):
+            return optax.adamw(lr, **kwargs)
+        case (_, {"learning_rate": _}):
+            raise ValueError(f"Unsupported optimizer: {optimizer_name}")
         case _:
             raise ValueError("The 'learning_rate' key must be provided in optimizer_args.")
-    match optimizer_name:
-        case OptimizerName.adamw:
-            return optax.adamw(learning_rate, **kwargs)
-        case _:
-            raise ValueError(f"Unsupported optimizer: {optimizer_name}")
