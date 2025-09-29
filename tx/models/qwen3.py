@@ -1,5 +1,3 @@
-from typing import Optional
-
 from flax import nnx
 import jax
 from jax import numpy as jnp
@@ -61,7 +59,7 @@ class Qwen3Attention(nnx.Module):
         *,
         attention_mask: jax.Array | None = None,
         output_attentions: bool | None = None
-    ) -> tuple[jax.Array, Optional[jax.Array]]:
+    ) -> tuple[jax.Array, jax.Array | None]:
         q = self.q_norm(self.q_proj(x))
         k = self.k_norm(self.k_proj(x))
         v = self.v_proj(x)
@@ -128,7 +126,7 @@ class Qwen3DecoderLayer(nnx.Module):
         *,
         attention_mask: jax.Array | None = None,
         output_attentions: bool | None = None
-    ) -> tuple[jax.Array, Optional[jax.Array]]:
+    ) -> tuple[jax.Array, jax.Array | None]:
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
         hidden_states, self_attn_weights = self.self_attn(
