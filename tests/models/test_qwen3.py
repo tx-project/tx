@@ -50,22 +50,20 @@ def test_qwen3_moe():
     tokenizer = AutoTokenizer.from_pretrained("trl-internal-testing/tiny-Qwen3MoeForCausalLM")
     hf_model = AutoModelForCausalLM.from_pretrained("trl-internal-testing/tiny-Qwen3MoeForCausalLM", attn_implementation="eager", use_safetensors=True)
 
-    inputs = ["The capital of France is", "The most popular programming language is"]
-    batch = tokenizer(inputs, return_tensors="pt", padding=True)
-    with torch.no_grad():
-        hf_outputs = hf_model(batch.input_ids, attention_mask=batch.attention_mask, output_hidden_states=True, output_attentions=True, return_dict=True)
-
     moe = hf_model.model.layers[0].mlp
-    print("hf_model.moe", moe)
     x = torch.randn(1, 2, 8)
-    final_hidden_states, router_logits = moe.forward(x)
-    print("final_hidden_states", final_hidden_states)
-    # print("hf_outputs", hf_outputs)
-    print("final_hidden_states.shape", final_hidden_states.shape)
+    with torch.no_grad():
+        hf_final_hidden_states, hf_router_logits = moe.forward(x)
 
     from tx.models.qwen3 import Qwen3MoE
     config = AutoConfig.from_pretrained("trl-internal-testing/tiny-Qwen3MoeForCausalLM")
     mesh = jax.make_mesh((1, 1), ("dp", "tp"))
     with jax.set_mesh(mesh):
         moe_layer = Qwen3MoE(config, dtype=jnp.float32, rngs=nnx.Rngs(0))
-    output = moe_layer(x.numpy())
+        moe_layer.gate.kernel[:] = moe.gate.weight[:].detach().numpy().T
+
+    inp = x.numpy()
+    final_hidden_states, router_logits = moe_layer(inp)
+
+    assert np.allclose(hf_router_logits, router_logits, rtol=1e-5)
+    assert np.allclose(hf_final_hidden_states, final_hidden_states, rtol=1e-3)
