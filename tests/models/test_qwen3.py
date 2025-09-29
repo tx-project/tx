@@ -55,4 +55,8 @@ def test_qwen3_moe():
     with torch.no_grad():
         hf_outputs = hf_model(batch.input_ids, attention_mask=batch.attention_mask, output_hidden_states=True, output_attentions=True, return_dict=True)
 
-    print("hf_outputs", hf_outputs)
+    moe = hf_model.model.layers[0].mlp
+    print("hf_model.moe", moe)
+    x = torch.zeros(1, 2, 8)
+    print("y", moe.forward(x))
+    # print("hf_outputs", hf_outputs)
