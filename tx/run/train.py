@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import sys
+from typing import NotRequired, TypedDict
 
 from datasets import Dataset, load_dataset
 import jax
@@ -33,6 +34,14 @@ def train_step(model, optimizer: nnx.Optimizer, batch):
     return loss, gradnorm
 
 
+class AdamWArgs(TypedDict):
+    learning_rate: float
+    b1: NotRequired[float]
+    b2: NotRequired[float]
+    eps: NotRequired[float]
+    weight_decay: NotRequired[float]
+
+
 def train(
     model_name: str = typer.Option(..., "--model", help="HuggingFace model ID or local model path"),
     dataset: str = typer.Option(..., "--dataset", help="HuggingFace dataset to use for training"),
@@ -43,7 +52,7 @@ def train(
     save_steps: int = typer.Option(500, "--save-steps", help="Number of steps between checkpoints"),
     max_steps: int | None = typer.Option(None, "--max-steps", help="The maximum number of training steps"),
     batch_size: int = typer.Option(..., "--batch-size", help="Batch size of each training batch"),
-    optimizer_args: str = typer.Option('{"learning_rate": 1e-5, "weight_decay": 0.1}', "--optimizer-args", help="Arguments for the optax optimizer"),
+    optimizer_args: AdamWArgs = typer.Option('{"learning_rate": 1e-5, "weight_decay": 0.1}', "--optimizer-args", help="Arguments for the optax optimizer", parser=json.loads),
     tp_size: int = typer.Option(1, "--tp-size", help="Tensor parallelism degree to use for the model"),
     tracker_name: ExperimentTracker | None = typer.Option(None, "--tracker", help="Experiment tracker to report results to"),
     tracker_args: str = typer.Option("{}", "--tracker-args", help="Arguments that will be passed to the experiment tracker (in JSON format)"),
@@ -67,9 +76,7 @@ def train(
     mesh = jax.make_mesh((1, tp_size), ("dp", "tp"))
     with jax.set_mesh(mesh):
         model = model_class(config, dtype=get_dtype(config.dtype), rngs=nnx.Rngs(0))
-        optimizer = nnx.Optimizer(
-            model, optax.adamw(**json.loads(optimizer_args)), wrt=nnx.Param
-        )
+        optimizer = nnx.Optimizer(model, optax.adamw(**optimizer_args), wrt=nnx.Param)
 
     if load_checkpoint_path:
         load_checkpoint(load_checkpoint_path, config, model)
