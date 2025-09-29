@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Callable, TYPE_CHECKING
 
 from flax import nnx
 import jax.numpy as jnp
@@ -29,7 +29,7 @@ def get_dtype(dtype: str | torch.dtype) -> jnp.dtype:
             raise ValueError(f"Unsupported torch dtype: {dtype}")
 
 
-def get_model_class(config: PretrainedConfig) -> type[nnx.Module]:
+def get_model_class(config: PretrainedConfig) -> Callable[..., nnx.Module]:
     "Get the correct model class based on the config."
 
     for architecture in config.architectures or []:
@@ -49,9 +49,9 @@ def get_param_key(path: tuple) -> str:
     return ".".join(map(str, path))
 
 
-def load_checkpoint(path: str | os.PathLike, config: PretrainedConfig, model: nnx.Module) -> None:
+def load_checkpoint(checkpoint_dir: str | os.PathLike, config: PretrainedConfig, model: nnx.Module) -> None:
     tensors = {}
-    for file in Path(path).glob("*.safetensors"):
+    for file in Path(checkpoint_dir).glob("*.safetensors"):
         tensors.update(safetensors.numpy.load_file(file))
     model_params = nnx.to_flat_state(nnx.state(model))
     updates = []

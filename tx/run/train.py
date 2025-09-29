@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import sys
 
-from datasets import load_dataset
+from datasets import Dataset, load_dataset
 import jax
 from flax import nnx
 import optax
@@ -48,7 +48,7 @@ def train(
     tracker_name: ExperimentTracker | None = typer.Option(None, "--tracker", help="Experiment tracker to report results to"),
     tracker_args: str = typer.Option("{}", "--tracker-args", help="Arguments that will be passed to the experiment tracker (in JSON format)"),
 ) -> None:
-    if not jax._src.xla_bridge.backends_are_initialized():
+    if not jax._src.xla_bridge.backends_are_initialized():  # ty: ignore
         jax.config.update('jax_num_cpu_devices', tp_size)
         # If you want to debug NaNs, add the following:
         # jax.config.update("jax_debug_nans", True)
@@ -58,6 +58,7 @@ def train(
     logger.info(f"tx was invoked with 'tx {' '.join(sys.argv[1:])}'")
 
     train_dataset = load_dataset(dataset, split=split)
+    assert isinstance(train_dataset, Dataset)
     config = AutoConfig.from_pretrained(model_name)
     tracker = get_tracker(tracker_name, config, **json.loads(tracker_args))
     loader = get_loader(loader_name)
@@ -73,7 +74,7 @@ def train(
     if load_checkpoint_path:
         load_checkpoint(load_checkpoint_path, config, model)
 
-    num_steps = len(train_dataset) / batch_size
+    num_steps = train_dataset.num_rows / batch_size
     for step, (batch, metrics) in enumerate(loader(config, train_dataset, batch_size)):
         if max_steps and step >= max_steps:
             break
