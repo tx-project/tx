@@ -60,10 +60,10 @@ def test_qwen3_moe():
     with jax.set_mesh(mesh):
         moe_layer = Qwen3MoE(config, dtype=jnp.float32, rngs=nnx.Rngs(0))
         moe_layer.gate.kernel[:] = moe.gate.weight[:].detach().numpy().T
-        for i in range(config.num_experts):
-            moe_layer.gate_proj[i,:,:] = moe.experts[i].gate_proj.weight[:].detach().numpy().T
-            moe_layer.up_proj[i,:,:] = moe.experts[i].up_proj.weight[:].detach().numpy().T
-            moe_layer.down_proj[i,:,:] = moe.experts[i].down_proj.weight[:].detach().numpy().T
+        for i, expert in enumerate(moe.experts):
+            moe_layer.gate_proj[i,:,:] = expert.gate_proj.weight.detach().numpy().T
+            moe_layer.up_proj[i,:,:] = expert.up_proj.weight.detach().numpy().T
+            moe_layer.down_proj[i,:,:] = expert.down_proj.weight.detach().numpy().T
 
     inp = x.numpy()
     final_hidden_states, router_logits = moe_layer(inp)
