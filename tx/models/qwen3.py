@@ -136,26 +136,31 @@ class Qwen3Experts(nnx.Module):
         )
 
     def __call__(self, hidden_states: jax.Array, router_logits: jax.Array) -> jax.Array:
-        routing_weights, selected_experts = jax.lax.top_k(router_logits, k=self.config.num_experts_per_tok)
+        # Get top-k experts for each token and compute routing weights
+        routing_weights, selected_experts = jax.lax.top_k(
+            router_logits, k=self.config.num_experts_per_tok
+        )
         routing_weights = nnx.softmax(routing_weights, axis=-1)
 
         # Prepare for ragged_dot by sorting tokens based on their assigned expert
-        selected_experts_flat = jnp.ravel(selected_experts)
+        selected_experts_flat = selected_experts.ravel()
         hidden_states_expanded = jnp.repeat(hidden_states, self.config.num_experts_per_tok, axis=0)
         sort_indices = jnp.argsort(selected_experts_flat)
-        unsort_indices = jnp.argsort(sort_indices)
         hidden_states_sorted = hidden_states_expanded[sort_indices]
         group_sizes = jnp.bincount(selected_experts_flat, length=self.config.num_experts)
 
+        # Apply expert layers using ragged_dot
         gate_out = jax.lax.ragged_dot(hidden_states_sorted, self.gate_proj.value, group_sizes)
         up_out = jax.lax.ragged_dot(hidden_states_sorted, self.up_proj.value, group_sizes)
-        activated = nnx.silu(gate_out) * up_out
-        down_out = jax.lax.ragged_dot(activated, self.down_proj.value, group_sizes)
+        down_out = jax.lax.ragged_dot(
+            nnx.silu(gate_out) * up_out, self.down_proj.value, group_sizes
+        )
 
         # Unsort and combine the expert outputs
+        unsort_indices = jnp.argsort(sort_indices)
         unsorted_out = down_out[unsort_indices]
         reshaped_out = unsorted_out.reshape(-1, self.config.num_experts_per_tok, self.config.hidden_size)
-        return (reshaped_out * routing_weights[..., None]).sum(axis=1)
+        return jnp.sum(reshaped_out * routing_weights[..., None], axis=1)
 
 
 class Qwen3MoE(nnx.Module):
