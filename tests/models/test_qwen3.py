@@ -48,8 +48,9 @@ def test_qwen3(tp: int):
 
 
 def test_qwen3_moe():
-    hf_model = AutoModelForCausalLM.from_pretrained("trl-internal-testing/tiny-Qwen3MoeForCausalLM", attn_implementation="eager", use_safetensors=True)
-    config = AutoConfig.from_pretrained("trl-internal-testing/tiny-Qwen3MoeForCausalLM")
+    model_name = "trl-internal-testing/tiny-Qwen3MoeForCausalLM"
+    hf_model = AutoModelForCausalLM.from_pretrained(model_name, attn_implementation="eager", use_safetensors=True)
+    config = AutoConfig.from_pretrained(model_name)
 
     moe = hf_model.model.layers[0].mlp
     x = torch.randn(4, 2, config.hidden_size)
