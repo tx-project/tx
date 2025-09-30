@@ -10,7 +10,7 @@ import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from tx.models import Qwen3ForCausalLM
-from tx.models.qwen3_moe import Qwen3MoE
+from tx.models.qwen3_moe import Qwen3MoeSparseMoeBlock
 from tx.utils.models import load_checkpoint
 
 
@@ -59,7 +59,7 @@ def test_qwen3_moe_layer():
 
     mesh = jax.make_mesh((1, 1), ("dp", "tp"))
     with jax.set_mesh(mesh):
-        moe_layer = Qwen3MoE(config, dtype=jnp.float32, rngs=nnx.Rngs(0))
+        moe_layer = Qwen3MoeSparseMoeBlock(config, dtype=jnp.float32, rngs=nnx.Rngs(0))
         moe_layer.gate.kernel[:] = hf_moe_layer.gate.weight[:].detach().numpy().T
         for i, expert in enumerate(hf_moe_layer.experts):
             moe_layer.gate_proj[i,:,:] = expert.gate_proj.weight.detach().numpy().T

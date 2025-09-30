@@ -6,7 +6,7 @@ from transformers import Qwen3Config
 from tx.models.qwen3 import Param, RMSNorm, Qwen3Attention
 
 
-class Qwen3MoE(nnx.Module):
+class Qwen3MoeSparseMoeBlock(nnx.Module):
 
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.config = config
@@ -70,13 +70,13 @@ class Qwen3MoE(nnx.Module):
         return weighted_sum_out.reshape(x.shape), router_logits
 
 
-class Qwen3MoEDecoderLayer(nnx.Module):
+class Qwen3MoeDecoderLayer(nnx.Module):
 
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
         self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
         self.self_attn = Qwen3Attention(config, dtype=dtype, rngs=rngs)
-        self.mlp = Qwen3MoE(config, dtype=dtype, rngs=rngs)
+        self.mlp = Qwen3MoeSparseMoeBlock(config, dtype=dtype, rngs=rngs)
 
     def __call__(
         self,
@@ -102,7 +102,7 @@ class Qwen3MoEDecoderLayer(nnx.Module):
         return hidden_states, self_attn_weights
 
 
-class Qwen3MoEModel(nnx.Module):
+class Qwen3MoeModel(nnx.Module):
 
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.config = config
@@ -114,7 +114,7 @@ class Qwen3MoEModel(nnx.Module):
             embedding_init=nnx.with_partitioning(nnx.initializers.normal(), jax.P("tp", None)),
             rngs=rngs,
         )
-        self.layers = nnx.List([Qwen3MoEDecoderLayer(config, dtype=dtype, rngs=rngs) for _ in range(config.num_hidden_layers)])
+        self.layers = nnx.List([Qwen3MoeDecoderLayer(config, dtype=dtype, rngs=rngs) for _ in range(config.num_hidden_layers)])
         self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
 
     def __call__(
@@ -165,11 +165,11 @@ class Qwen3MoEModel(nnx.Module):
         }
 
 
-class Qwen3ForCausalLM(nnx.Module):
+class Qwen3MoeForCausalLM(nnx.Module):
 
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.config = config
-        self.model = Qwen3MoEModel(config, dtype=dtype, rngs=rngs)
+        self.model = Qwen3MoeModel(config, dtype=dtype, rngs=rngs)
         if not self.config.tie_word_embeddings:
             self.lm_head = nnx.Linear(
                 config.hidden_size, config.vocab_size, use_bias=False, dtype=dtype, param_dtype=dtype,
