@@ -10,6 +10,7 @@ import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from tx.models import Qwen3ForCausalLM
+from tx.models.qwen3 import Qwen3MoE
 from tx.utils.models import load_checkpoint
 
 
@@ -48,14 +49,13 @@ def test_qwen3(tp: int):
 
 def test_qwen3_moe():
     hf_model = AutoModelForCausalLM.from_pretrained("trl-internal-testing/tiny-Qwen3MoeForCausalLM", attn_implementation="eager", use_safetensors=True)
+    config = AutoConfig.from_pretrained("trl-internal-testing/tiny-Qwen3MoeForCausalLM")
 
     moe = hf_model.model.layers[0].mlp
-    x = torch.randn(1, 2, 8)
+    x = torch.randn(4, 2, config.hidden_size)
     with torch.no_grad():
         hf_final_hidden_states, hf_router_logits = moe.forward(x)
 
-    from tx.models.qwen3 import Qwen3MoE
-    config = AutoConfig.from_pretrained("trl-internal-testing/tiny-Qwen3MoeForCausalLM")
     mesh = jax.make_mesh((1, 1), ("dp", "tp"))
     with jax.set_mesh(mesh):
         moe_layer = Qwen3MoE(config, dtype=jnp.float32, rngs=nnx.Rngs(0))
@@ -65,8 +65,7 @@ def test_qwen3_moe():
             moe_layer.up_proj[i,:,:] = expert.up_proj.weight.detach().numpy().T
             moe_layer.down_proj[i,:,:] = expert.down_proj.weight.detach().numpy().T
 
-    inp = x.numpy()
-    final_hidden_states, router_logits = moe_layer(inp)
+    final_hidden_states, router_logits = moe_layer(x.numpy())
 
     assert np.allclose(hf_router_logits, router_logits, rtol=1e-4)
     assert np.allclose(hf_final_hidden_states, final_hidden_states, rtol=1e-2, atol=1e-2)
