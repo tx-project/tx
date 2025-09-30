@@ -168,13 +168,9 @@ class Qwen3MoE(nnx.Module):
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.config = config
         self.gate = nnx.Linear(
-            config.hidden_size,
-            config.num_experts,
-            use_bias=False,
-            dtype=dtype,
-            param_dtype=dtype,
-            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")),
-            rngs=rngs,
+            config.hidden_size, config.num_experts,
+            use_bias=False, dtype=dtype, param_dtype=dtype,
+            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")), rngs=rngs,
         )
         self.experts = Qwen3Experts(config, dtype=dtype, rngs=rngs)
 
