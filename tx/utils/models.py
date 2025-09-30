@@ -83,6 +83,11 @@ def save_checkpoint(config: PretrainedConfig, model: nnx.Module, filename: str |
         if "rngs" in path:
             continue
         key = get_param_key(path)
+        if "experts" in path:
+            for i in range(config.num_experts):
+                expert_key = key.replace("experts", f"experts.{i}") + ".weight"
+                tensors[expert_key] = param[i,:,:].T
+            continue # Ideally we wouldn't do this
         if "q_proj" in path or "k_proj" in path or "v_proj" in path:
             param = param.reshape(param.shape[0], -1)
         elif "o_proj" in path:
