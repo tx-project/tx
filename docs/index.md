@@ -12,4 +12,7 @@ uv run --with huggingface_hub hf download Qwen/Qwen3-4B --local-dir /tmp/qwen3
 
 # Fine-tune the model on a chat dataset
 uv run --with jinja2 tx train --model Qwen/Qwen3-4B --dataset HuggingFaceH4/ultrachat_200k --loader tx.loaders.chat --split train_sft --output-dir /tmp/ultrachat --batch-size 8 --load-checkpoint-path /tmp/qwen3
+
+# Serve the model with vllm
+uv run --with vllm vllm serve <fill this in>
 ```
