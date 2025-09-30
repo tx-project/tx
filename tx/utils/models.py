@@ -59,7 +59,16 @@ def load_checkpoint(checkpoint_dir: str | os.PathLike, config: PretrainedConfig,
     updates = []
     for path, param in model_params:
         key = get_param_key(path)
-        tensors[key] = tensors[key] if "embed_tokens" in path else tensors[key].T
+        if "experts" in path:
+            # In order to load the experts, we concatenate the relevant tensors
+            expert_tensors = []
+            for i in range(config.num_experts):
+                expert_key = key.replace("experts", f"experts.{i}") + ".weight"
+                expert_tensor = tensors[expert_key].T
+                expert_tensors.append(expert_tensor)
+            tensors[key] = jnp.stack(expert_tensors, axis=0)
+        else:
+            tensors[key] = tensors[key] if "embed_tokens" in path else tensors[key].T
         if path[-2] in {"q_proj", "k_proj", "v_proj", "o_proj"}:
             tensors[key] = tensors[key].reshape(param.shape)
         assert param.shape == tensors[key].shape, f"shape mismatch for {key}"
