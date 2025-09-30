@@ -66,7 +66,7 @@ def test_qwen3_moe_layer():
             moe_layer.experts.up_proj[i,:,:] = expert.up_proj.weight.detach().numpy().T
             moe_layer.experts.down_proj[i,:,:] = expert.down_proj.weight.detach().numpy().T
 
-    final_hidden_states, router_logits = moe_layer(x.numpy())
+    final_hidden_states, router_logits = moe_layer(x.numpy(), return_router_logits=True)
 
     assert np.allclose(hf_router_logits, router_logits, rtol=1e-4)
     assert np.allclose(hf_final_hidden_states, final_hidden_states, rtol=1e-2, atol=1e-2)
