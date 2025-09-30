@@ -10,7 +10,7 @@ import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from tx.models import Qwen3ForCausalLM
-from tx.models.qwen3_moe import Qwen3MoeSparseMoeBlock
+from tx.models.qwen3 import Qwen3MoeSparseMoeBlock
 from tx.utils.models import load_checkpoint
 
 
