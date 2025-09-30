@@ -112,21 +112,9 @@ class Qwen3MLP(nnx.Module):
         return self.down_proj(nnx.silu(self.gate_proj(x)) * self.up_proj(x))
 
 
-class Qwen3MoE(nnx.Module):
+class Qwen3Experts(nnx.Module):
 
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
-        self.config = config
-
-        self.gate = nnx.Linear(
-            config.hidden_size,
-            config.num_experts,
-            use_bias=False,
-            dtype=dtype,
-            param_dtype=dtype,
-            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")),
-            rngs=rngs,
-        )
-
         self.gate_proj = Param(
             config.num_experts, config.hidden_size, config.moe_intermediate_size,
             dtype=dtype,
@@ -146,6 +134,30 @@ class Qwen3MoE(nnx.Module):
             rngs=rngs
         )
 
+    def __call__(self, x_sorted: jax.Array, group_sizes: jax.Array) -> jax.Array:
+        gate_out = jax.lax.ragged_dot(x_sorted, self.gate_proj.value, group_sizes)
+        up_out = jax.lax.ragged_dot(x_sorted, self.up_proj.value, group_sizes)
+        activated = nnx.silu(gate_out) * up_out
+        return jax.lax.ragged_dot(activated, self.down_proj.value, group_sizes)
+
+
+class Qwen3MoE(nnx.Module):
+
+    def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
+        self.config = config
+
+        self.gate = nnx.Linear(
+            config.hidden_size,
+            config.num_experts,
+            use_bias=False,
+            dtype=dtype,
+            param_dtype=dtype,
+            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")),
+            rngs=rngs,
+        )
+
+        self.experts = Qwen3Experts(config, dtype=dtype, rngs=rngs)
+
     def __call__(self, x: jax.Array) -> tuple[jax.Array, jax.Array]:
         x_reshaped = x.reshape(-1, self.config.hidden_size)
 
@@ -162,11 +174,8 @@ class Qwen3MoE(nnx.Module):
         x_sorted = x_expanded[sort_indices]
         group_sizes = jnp.bincount(selected_experts_flat, length=self.config.num_experts)
 
-        # Apply expert MLPs using ragged_dot
-        gate_out = jax.lax.ragged_dot(x_sorted, self.gate_proj.value, group_sizes)
-        up_out = jax.lax.ragged_dot(x_sorted, self.up_proj.value, group_sizes)
-        activated = nnx.silu(gate_out) * up_out
-        down_out = jax.lax.ragged_dot(activated, self.down_proj.value, group_sizes)
+        # Apply expert MLPs using the Qwen3Experts module
+        down_out = self.experts(x_sorted, group_sizes)
 
         # Unsort and combine the expert outputs
         unsorted_out = down_out[unsort_indices]
