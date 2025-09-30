@@ -47,7 +47,6 @@ def test_qwen3(tp: int):
 
 
 def test_qwen3_moe():
-    tokenizer = AutoTokenizer.from_pretrained("trl-internal-testing/tiny-Qwen3MoeForCausalLM")
     hf_model = AutoModelForCausalLM.from_pretrained("trl-internal-testing/tiny-Qwen3MoeForCausalLM", attn_implementation="eager", use_safetensors=True)
 
     moe = hf_model.model.layers[0].mlp
