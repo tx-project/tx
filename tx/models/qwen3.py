@@ -128,19 +128,19 @@ class Qwen3MoE(nnx.Module):
         )
 
         self.gate_proj = Param(
-            config.num_experts, config.hidden_size, self.config.intermediate_size,
+            config.num_experts, config.hidden_size, config.moe_intermediate_size,
             dtype=dtype,
             kernel_init=nnx.with_partitioning(nnx.initializers.normal(), jax.P(None, "tp")),
             rngs=rngs
         )
         self.up_proj = Param(
-            config.num_experts, config.hidden_size, self.config.intermediate_size,
+            config.num_experts, config.hidden_size, config.moe_intermediate_size,
             dtype=dtype,
             kernel_init=nnx.with_partitioning(nnx.initializers.normal(), jax.P(None, "tp")),
             rngs=rngs
         )
         self.down_proj = Param(
-            config.num_experts, self.config.intermediate_size, config.hidden_size,
+            config.num_experts, config.moe_intermediate_size, config.hidden_size,
             dtype=dtype,
             kernel_init=nnx.with_partitioning(nnx.initializers.normal(), jax.P("tp", None)),
             rngs=rngs
