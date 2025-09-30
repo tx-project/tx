@@ -43,7 +43,7 @@ class Qwen3Attention(nnx.Module):
         self.config = config
         self.num_heads = config.num_attention_heads
         self.num_kv_heads = config.num_key_value_heads
-        self.head_dim = config.head_dim
+        self.head_dim = getattr(config, 'head_dim', None) or config.hidden_size // self.num_heads
         
         self.q_proj = MultiHeadProj("BMK,KNH->BMNH", config.hidden_size, self.num_heads, self.head_dim, sharding=jax.P(None, "tp", None), dtype=dtype, rngs=rngs)
         self.k_proj = MultiHeadProj("BMK,KNH->BMNH", config.hidden_size, self.num_kv_heads, self.head_dim, sharding=jax.P(None, "tp", None), dtype=dtype, rngs=rngs)
