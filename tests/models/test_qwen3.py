@@ -52,16 +52,16 @@ def test_qwen3_moe():
     hf_model = AutoModelForCausalLM.from_pretrained(model_name, attn_implementation="eager", use_safetensors=True)
     config = AutoConfig.from_pretrained(model_name)
 
-    moe = hf_model.model.layers[0].mlp
+    hf_moe_layer = hf_model.model.layers[0].mlp
     x = torch.randn(4, 2, config.hidden_size)
     with torch.no_grad():
-        hf_final_hidden_states, hf_router_logits = moe.forward(x)
+        hf_final_hidden_states, hf_router_logits = hf_moe_layer.forward(x)
 
     mesh = jax.make_mesh((1, 1), ("dp", "tp"))
     with jax.set_mesh(mesh):
         moe_layer = Qwen3MoE(config, dtype=jnp.float32, rngs=nnx.Rngs(0))
-        moe_layer.gate.kernel[:] = moe.gate.weight[:].detach().numpy().T
-        for i, expert in enumerate(moe.experts):
+        moe_layer.gate.kernel[:] = hf_moe_layer.gate.weight[:].detach().numpy().T
+        for i, expert in enumerate(hf_moe_layer.experts):
             moe_layer.gate_proj[i,:,:] = expert.gate_proj.weight.detach().numpy().T
             moe_layer.up_proj[i,:,:] = expert.up_proj.weight.detach().numpy().T
             moe_layer.down_proj[i,:,:] = expert.down_proj.weight.detach().numpy().T
