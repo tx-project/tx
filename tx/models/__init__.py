@@ -1,6 +1,7 @@
 from tx.models.mnist import Mnist
 from tx.models.qwen3 import Qwen3ForCausalLM
-from tx.models.qwen3 import Qwen3ForCausalLM as Qwen3MoeForCausalLM
+
+Qwen3MoeForCausalLM = Qwen3ForCausalLM
 
 __all__ = [
     Mnist,

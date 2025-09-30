@@ -108,8 +108,8 @@ class Qwen3MLP(nnx.Module):
             kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P("tp", None)), rngs=rngs
         )
 
-    def __call__(self, x: jax.Array) -> jax.Array:
-        return self.down_proj(nnx.silu(self.gate_proj(x)) * self.up_proj(x))
+    def __call__(self, x: jax.Array) -> tuple[jax.Array, None]:
+        return self.down_proj(nnx.silu(self.gate_proj(x)) * self.up_proj(x)), None
 
 
 class Qwen3Experts(nnx.Module):
@@ -188,7 +188,10 @@ class Qwen3DecoderLayer(nnx.Module):
         self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
         self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
         self.self_attn = Qwen3Attention(config, dtype=dtype, rngs=rngs)
-        self.mlp = Qwen3MLP(config, dtype=dtype, rngs=rngs)
+        if getattr(config, "num_experts", None):
+            self.mlp = Qwen3MoeSparseMoeBlock(config, dtype=dtype, rngs=rngs)
+        else:
+            self.mlp = Qwen3MLP(config, dtype=dtype, rngs=rngs)
 
     def __call__(
         self,
@@ -208,7 +211,7 @@ class Qwen3DecoderLayer(nnx.Module):
 
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = self.mlp(hidden_states)
+        hidden_states, _ = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
 
         return hidden_states, self_attn_weights
