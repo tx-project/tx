@@ -10,7 +10,7 @@ import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from tx.models import Qwen3ForCausalLM
-from tx.models.qwen3 import Qwen3MoE
+from tx.models.qwen3_moe import Qwen3MoE
 from tx.utils.models import load_checkpoint
 
 
@@ -47,7 +47,7 @@ def test_qwen3(tp: int):
         assert np.allclose(hf_outputs.hidden_states[-1], outputs["hidden_states"][-1], rtol=1e-3, atol=1e-3)
 
 
-def test_qwen3_moe():
+def test_qwen3_moe_layer():
     model_name = "trl-internal-testing/tiny-Qwen3MoeForCausalLM"
     hf_model = AutoModelForCausalLM.from_pretrained(model_name, attn_implementation="eager", use_safetensors=True)
     config = AutoConfig.from_pretrained(model_name)
