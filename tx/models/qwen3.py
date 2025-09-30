@@ -123,30 +123,30 @@ class Qwen3MoE(nnx.Module):
             use_bias=False,
             dtype=dtype,
             param_dtype=dtype,
-            kernel_init=nnx.with_partitioning(nnx.nn.linear.default_kernel_init, jax.P(None, "tp")),
+            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")),
             rngs=rngs,
         )
 
         self.gate_proj = Param(
             config.num_experts, config.hidden_size, config.moe_intermediate_size,
             dtype=dtype,
-            kernel_init=nnx.with_partitioning(nnx.initializers.normal(), jax.P(None, "tp")),
+            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")),
             rngs=rngs
         )
         self.up_proj = Param(
             config.num_experts, config.hidden_size, config.moe_intermediate_size,
             dtype=dtype,
-            kernel_init=nnx.with_partitioning(nnx.initializers.normal(), jax.P(None, "tp")),
+            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")),
             rngs=rngs
         )
         self.down_proj = Param(
             config.num_experts, config.moe_intermediate_size, config.hidden_size,
             dtype=dtype,
-            kernel_init=nnx.with_partitioning(nnx.initializers.normal(), jax.P("tp", None)),
+            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P("tp", None)),
             rngs=rngs
         )
 
-    def __call__(self, x: jax.Array) -> jax.Array:
+    def __call__(self, x: jax.Array) -> tuple[jax.Array, jax.Array]:
         x_reshaped = x.reshape(-1, self.config.hidden_size)
 
         # Select top-k experts for each token
