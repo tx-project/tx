@@ -1,41 +1,41 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional, Literal, Any, Dict, List
+from typing import Literal, Any
 from uuid import uuid4
 
 app = FastAPI(title="Tinker API Mock", version="1.0.0")
 
 # In-memory storage for models
-models_db: Dict[str, Dict[str, Any]] = {}
-futures_db: Dict[str, Dict[str, Any]] = {}
+models_db: dict[str, dict[str, Any]] = {}
+futures_db: dict[str, dict[str, Any]] = {}
 
 
 # Pydantic Models
 class LoRAConfig(BaseModel):
     r: int = 8
     lora_alpha: int = 16
-    target_modules: Optional[List[str]] = None
+    target_modules: list[str] | None = None
     lora_dropout: float = 0.05
 
 
 class CreateModelRequest(BaseModel):
     base_model: str
-    lora_config: Optional[LoRAConfig] = None
-    type: Optional[str] = None
+    lora_config: LoRAConfig | None = None
+    type: str | None = None
 
 
 class CreateModelResponse(BaseModel):
     model_id: str
     base_model: str
-    lora_config: Optional[LoRAConfig] = None
+    lora_config: LoRAConfig | None = None
     status: str = "created"
     request_id: str
 
 
 class ModelData(BaseModel):
     base_model: str
-    lora_config: Optional[LoRAConfig] = None
-    model_name: Optional[str] = None
+    lora_config: LoRAConfig | None = None
+    model_name: str | None = None
 
 
 class ModelInfoResponse(BaseModel):
@@ -46,7 +46,7 @@ class ModelInfoResponse(BaseModel):
 
 class ForwardBackwardInput(BaseModel):
     model_id: str
-    forward_backward_input: Dict[str, Any]
+    forward_backward_input: dict[str, Any]
 
 
 class AdamParams(BaseModel):
@@ -59,13 +59,13 @@ class AdamParams(BaseModel):
 class OptimStepRequest(BaseModel):
     model_id: str
     adam_params: AdamParams
-    type: Optional[str] = None
+    type: str | None = None
 
 
 class FutureResponse(BaseModel):
     future_id: str
     status: str = "pending"
-    request_id: Optional[str] = None
+    request_id: str | None = None
 
 
 class TelemetryEvent(BaseModel):
@@ -74,11 +74,11 @@ class TelemetryEvent(BaseModel):
     event_session_index: int
     severity: str
     timestamp: str
-    properties: Optional[Dict[str, Any]] = None
+    properties: dict[str, Any] | None = None
 
 
 class TelemetryRequest(BaseModel):
-    events: List[TelemetryEvent]
+    events: list[TelemetryEvent]
     platform: str
     sdk_version: str
     session_id: str
@@ -89,11 +89,11 @@ class TelemetryResponse(BaseModel):
 
 
 class SupportedModel(BaseModel):
-    model_name: Optional[str] = None
+    model_name: str | None = None
 
 
 class GetServerCapabilitiesResponse(BaseModel):
-    supported_models: List[SupportedModel]
+    supported_models: list[SupportedModel]
 
 
 # Models endpoints
@@ -127,7 +127,7 @@ async def create_model(request: CreateModelRequest):
 
 class GetInfoRequest(BaseModel):
     model_id: str
-    type: Optional[str] = None
+    type: str | None = None
 
 
 @app.post("/api/v1/get_info", response_model=ModelInfoResponse)
