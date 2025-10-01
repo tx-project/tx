@@ -33,7 +33,7 @@ jobs:
         uvx ruff check
     - name: Run type checking
       run: |
-        uvx ty check
+        uv run --extra tinker --extra dev ty check
     - name: Run pytest
       run: |
         uv run --extra dev pytest -s tests
