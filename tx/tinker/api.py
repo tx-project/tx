@@ -263,7 +263,12 @@ async def optim_step(request: OptimStepRequest):
         raise HTTPException(status_code=404, detail="Model not found")
 
     future_id = f"future_{uuid4().hex[:8]}"
-    return FutureResponse(future_id=future_id, status="completed")
+    request_id = f"req_{uuid4().hex[:8]}"
+
+    # Store empty result for optim_step
+    futures_db[request_id] = {}
+
+    return FutureResponse(future_id=future_id, status="completed", request_id=request_id)
 
 
 # Sampling endpoints
