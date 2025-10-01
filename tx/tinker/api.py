@@ -41,8 +41,6 @@ class ModelData(BaseModel):
 
 class ModelInfoResponse(BaseModel):
     model_id: str
-    base_model: str
-    lora_config: Optional[LoRAConfig] = None
     status: str
     model_data: ModelData
 
@@ -205,8 +203,6 @@ async def get_model_info(request: GetInfoRequest):
 
     return ModelInfoResponse(
         model_id=model["model_id"],
-        base_model=model["base_model"],
-        lora_config=model["lora_config"],
         status=model["status"],
         model_data=model_data
     )
