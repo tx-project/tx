@@ -28,7 +28,7 @@ def test_qwen3(tp: int):
     inputs = ["The capital of France is", "The most popular programming language is"]
     batch = tokenizer(inputs, return_tensors="pt", padding=True)
     with torch.no_grad():
-        hf_outputs = hf_model(batch.input_ids, attention_mask=batch.attention_mask, output_hidden_states=True, output_attentions=True, return_dict=True)
+        hf_outputs = hf_model(batch.input_ids, attention_mask=batch.attention_mask, output_hidden_states=True, return_dict=True)
 
     # Save the HF model checkpoint so we can load our model from it
     with tempfile.TemporaryDirectory() as tmp:
