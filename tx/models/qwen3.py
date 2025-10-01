@@ -74,19 +74,33 @@ class Qwen3Attention(nnx.Module):
             k = jnp.repeat(k, num_groups, axis=2)
             v = jnp.repeat(v, num_groups, axis=2)
 
-        attn_weights = jnp.einsum("BMNH,BTNH->BNMT", q, k)
-        attn_weights = attn_weights / jnp.sqrt(self.head_dim)
+        # Use jax.nn.dot_product_attention for efficient, platform-agnostic attention
+        # This automatically uses FlashAttention (via CuDNN) on GPU or optimized XLA kernels on TPU
+        # q, k, v are already in BTNH format (B=batch, T=seq_len, N=num_heads, H=head_dim)
 
-        causal_mask = jnp.tril(jnp.ones((x.shape[1], x.shape[1])))[None, None, :, :]
-
+        # Prepare mask for dot_product_attention if needed
+        # attention_mask is [B, T] indicating which tokens are valid (1) vs padding (0)
+        mask = None
         if attention_mask is not None:
-            causal_mask *= attention_mask[:, None, None, :]
+            # Convert to boolean: [B, T] -> [B, 1, 1, T] for broadcasting
+            mask = attention_mask[:, None, None, :].astype(bool)
 
-        attn_weights = jnp.where(causal_mask == 0, -jnp.inf, attn_weights)
-        attn_weights = nnx.softmax(attn_weights, axis=-1)
-        attn_output = jnp.einsum("BNMT,BTNH->BMNH", attn_weights, v)
+        attn_output = jax.nn.dot_product_attention(
+            q, k, v,
+            scale=1.0 / jnp.sqrt(self.head_dim),
+            mask=mask,
+            is_causal=True,
+        )
 
-        if not output_attentions:
+        # Compute attention weights if requested (using naive implementation for backward compatibility)
+        if output_attentions:
+            attn_weights = jnp.einsum("BMNH,BTNH->BNMT", q, k) / jnp.sqrt(self.head_dim)
+            causal_mask = jnp.tril(jnp.ones((x.shape[1], x.shape[1])))[None, None, :, :]
+            if attention_mask is not None:
+                causal_mask *= attention_mask[:, None, None, :]
+            attn_weights = jnp.where(causal_mask == 0, -jnp.inf, attn_weights)
+            attn_weights = nnx.softmax(attn_weights, axis=-1)
+        else:
             attn_weights = None
 
         return self.o_proj(attn_output), attn_weights
