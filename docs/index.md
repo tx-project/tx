@@ -15,5 +15,6 @@ uv run --with huggingface_hub hf download Qwen/Qwen3-4B --local-dir /tmp/qwen3
 uv run --extra gpu --with jinja2 tx train --model Qwen/Qwen3-4B --dataset HuggingFaceH4/ultrachat_200k --loader tx.loaders.chat --split train_sft --output-dir /tmp/ultrachat --batch-size 8 --load-checkpoint-path /tmp/qwen3
 
 # Try out the model
-uv run --with transformers chat /tmp/ultrachat
+uv run --with vllm vllm serve /tmp/ultrachat
+uv run --with vllm vllm chat
 ```
