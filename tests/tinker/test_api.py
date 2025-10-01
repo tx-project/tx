@@ -1,7 +1,6 @@
 """Tests for the Tinker API mock server using the real tinker client."""
 import pytest
 import subprocess
-import time
 import tinker
 from tinker import types
 
@@ -14,9 +13,6 @@ def api_server():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
     )
-
-    # Give server a moment to start
-    time.sleep(2)
 
     yield process
 
