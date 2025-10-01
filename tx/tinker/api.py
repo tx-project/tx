@@ -33,11 +33,18 @@ class CreateModelResponse(BaseModel):
     request_id: str
 
 
+class ModelData(BaseModel):
+    base_model: str
+    lora_config: Optional[LoRAConfig] = None
+    model_name: Optional[str] = None
+
+
 class ModelInfoResponse(BaseModel):
     model_id: str
     base_model: str
     lora_config: Optional[LoRAConfig] = None
     status: str
+    model_data: ModelData
 
 
 class UnloadModelResponse(BaseModel):
@@ -189,7 +196,20 @@ async def get_model_info(request: GetInfoRequest):
     if request.model_id not in models_db:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    return ModelInfoResponse(**models_db[request.model_id])
+    model = models_db[request.model_id]
+    model_data = ModelData(
+        base_model=model["base_model"],
+        lora_config=model["lora_config"],
+        model_name=model["base_model"]
+    )
+
+    return ModelInfoResponse(
+        model_id=model["model_id"],
+        base_model=model["base_model"],
+        lora_config=model["lora_config"],
+        status=model["status"],
+        model_data=model_data
+    )
 
 
 @app.post("/api/v1/unload_model", response_model=UnloadModelResponse)
