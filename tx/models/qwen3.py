@@ -79,7 +79,7 @@ class Qwen3Attention(nnx.Module):
         # q, k, v are already in BTNH format (B=batch, T=seq_len, N=num_heads, H=head_dim)
         attn_output = jax.nn.dot_product_attention(
             q, k, v,
-            scale=1.0 / jnp.sqrt(self.head_dim),
+            scale=1.0 / self.head_dim ** 0.5,
             mask=attention_mask[:, None, None, :].astype(bool) if attention_mask is not None else None,
             is_causal=True,
         )
