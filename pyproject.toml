@@ -29,6 +29,11 @@ tpu = [
     "jax[tpu]>=0.7.2",
 ]
 
+tinker = [
+    "tinker",
+    "fastapi[standard]",
+]
+
 dev = [
     "mkdocs",
     "mkdocs-material",

@@ -180,7 +180,13 @@ async def create_model(request: CreateModelRequest):
     # Store the future result
     futures_db[request_id] = model_data
 
-    return CreateModelResponse(**model_data)
+    return CreateModelResponse(
+        model_id=model_id,
+        base_model=request.base_model,
+        lora_config=request.lora_config,
+        status="created",
+        request_id=request_id
+    )
 
 
 class GetInfoRequest(BaseModel):
@@ -337,7 +343,15 @@ async def list_checkpoints(model_id: str):
     if model_id not in models_db:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    return [Checkpoint(**ckpt) for ckpt in checkpoints_db.get(model_id, [])]
+    return [
+        Checkpoint(
+            checkpoint_id=ckpt["checkpoint_id"],
+            model_id=ckpt["model_id"],
+            path=ckpt["path"],
+            created_at=ckpt["created_at"]
+        )
+        for ckpt in checkpoints_db.get(model_id, [])
+    ]
 
 
 @app.delete("/api/v1/training_runs/{model_id}/checkpoints/{checkpoint_id}")
