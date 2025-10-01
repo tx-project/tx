@@ -73,9 +73,6 @@ class Qwen3Attention(nnx.Module):
             k = jnp.repeat(k, num_groups, axis=2)
             v = jnp.repeat(v, num_groups, axis=2)
 
-        # Use jax.nn.dot_product_attention for efficient, platform-agnostic attention
-        # This automatically uses FlashAttention (via CuDNN) on GPU or optimized XLA kernels on TPU
-        # q, k, v are already in BTNH format (B=batch, T=seq_len, N=num_heads, H=head_dim)
         attn_output = jax.nn.dot_product_attention(
             q, k, v,
             scale=1.0 / self.head_dim ** 0.5,
