@@ -45,16 +45,15 @@ def get_model_class(config: PretrainedConfig) -> Callable[..., nnx.Module]:
 
 def get_param_key(path: tuple) -> str:
     "Get the safetensors key for a given model path."
-
     if path[-1] in {"embedding", "kernel"}:
         path = (*path[:-1], "weight")
     return ".".join(map(str, path))
 
 
-def get_expert_key(key: str, expert_idx: int) -> str:
-    "Get safetensors key including expert index from a key without the index."
-
-    return key.replace("experts", f"experts.{expert_idx}") + ".weight"
+def get_expert_key(path: tuple, expert_idx: int) -> str:
+    "Get the safetensors key for an expert weight model path."
+    path = tuple(s if s != "experts" else f"experts.{expert_idx}" for s in path)
+    return ".".join(map(str, path)) + ".weight"
 
 
 def load_checkpoint(checkpoint_dir: str | os.PathLike, config: PretrainedConfig, model: nnx.Module) -> None:
@@ -67,7 +66,7 @@ def load_checkpoint(checkpoint_dir: str | os.PathLike, config: PretrainedConfig,
         key = get_param_key(path)
         if "experts" in path:
             # In order to load the expert weights, we concatenate the relevant tensors
-            expert_tensors = [tensors[get_expert_key(key, i)].T for i in range(config.num_experts)]
+            expert_tensors = [tensors[get_expert_key(path, i)].T for i in range(config.num_experts)]
             tensors[key] = jnp.stack(expert_tensors, axis=0)
         else:
             tensors[key] = tensors[key] if "embed_tokens" in path else tensors[key].T
@@ -87,7 +86,7 @@ def save_checkpoint(config: PretrainedConfig, model: nnx.Module, filename: str |
         key = get_param_key(path)
         if "experts" in path:
             for i in range(config.num_experts):
-                tensors[get_expert_key(key, i)] = param[i,:,:].T
+                tensors[get_expert_key(path, i)] = param[i,:,:].T
             continue
         if "q_proj" in path or "k_proj" in path or "v_proj" in path:
             param = param.reshape(param.shape[0], -1)
