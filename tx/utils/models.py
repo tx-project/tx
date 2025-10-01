@@ -51,6 +51,12 @@ def get_param_key(path: tuple) -> str:
     return ".".join(map(str, path))
 
 
+def get_expert_key(key: str, expert_idx: int) -> str:
+    "Get safetensors key including expert index from a key without the index."
+
+    return key.replace("experts", f"experts.{expert_idx}") + ".weight"
+
+
 def load_checkpoint(checkpoint_dir: str | os.PathLike, config: PretrainedConfig, model: nnx.Module) -> None:
     tensors = {}
     for file in Path(checkpoint_dir).glob("*.safetensors"):
@@ -60,12 +66,8 @@ def load_checkpoint(checkpoint_dir: str | os.PathLike, config: PretrainedConfig,
     for path, param in model_params:
         key = get_param_key(path)
         if "experts" in path:
-            # In order to load the experts, we concatenate the relevant tensors
-            expert_tensors = []
-            for i in range(config.num_experts):
-                expert_key = key.replace("experts", f"experts.{i}") + ".weight"
-                expert_tensor = tensors[expert_key].T
-                expert_tensors.append(expert_tensor)
+            # In order to load the expert weights, we concatenate the relevant tensors
+            expert_tensors = [tensors[get_expert_key(key, i)].T for i in range(config.num_experts)]
             tensors[key] = jnp.stack(expert_tensors, axis=0)
         else:
             tensors[key] = tensors[key] if "embed_tokens" in path else tensors[key].T
@@ -85,9 +87,8 @@ def save_checkpoint(config: PretrainedConfig, model: nnx.Module, filename: str |
         key = get_param_key(path)
         if "experts" in path:
             for i in range(config.num_experts):
-                expert_key = key.replace("experts", f"experts.{i}") + ".weight"
-                tensors[expert_key] = param[i,:,:].T
-            continue # Ideally we wouldn't do this
+                tensors[get_expert_key(key, i)] = param[i,:,:].T
+            continue
         if "q_proj" in path or "k_proj" in path or "v_proj" in path:
             param = param.reshape(param.shape[0], -1)
         elif "o_proj" in path:
