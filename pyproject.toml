@@ -39,6 +39,7 @@ dev = [
     "mkdocs-material",
     "pytest",
     "torch",
+    "ty",
 ]
 
 [tool.setuptools]
