@@ -10,7 +10,7 @@ from tinker import types
 def api_server():
     """Start the FastAPI server for testing."""
     process = subprocess.Popen(
-        ["uv", "run", "uvicorn", "tx.tinker.api:app", "--host", "0.0.0.0", "--port", "8000"],
+        ["uv", "run", "--extra", "tinker", "uvicorn", "tx.tinker.api:app", "--host", "0.0.0.0", "--port", "8000"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
     )
@@ -34,9 +34,9 @@ def service_client(api_server):
 def test_example_workflow(service_client):
     """Test the example workflow from the user."""
     # Get server capabilities
-    print("\nAvailable models:")
-    for item in service_client.get_server_capabilities().supported_models:
-        print("- " + item.model_name)
+    capabilities = service_client.get_server_capabilities()
+    model_names = [item.model_name for item in capabilities.supported_models]
+    assert "Qwen/Qwen3-8B" in model_names
 
     base_model = "Qwen/Qwen3-8B"
     training_client = service_client.create_lora_training_client(
@@ -99,5 +99,3 @@ def test_training_workflow(service_client):
     assert optim_result is not None
     assert fwdbwd_result.loss_fn_output_type == "scalar"
     assert len(fwdbwd_result.loss_fn_outputs) > 0
-
-    print(f"\nTraining completed! Loss type: {fwdbwd_result.loss_fn_output_type}")
