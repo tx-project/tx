@@ -8,6 +8,7 @@ app = FastAPI(title="Tinker API Mock", version="1.0.0")
 # In-memory storage for models
 models_db: Dict[str, Dict[str, Any]] = {}
 checkpoints_db: Dict[str, List[Dict[str, Any]]] = {}
+futures_db: Dict[str, Dict[str, Any]] = {}
 
 
 # Pydantic Models
@@ -21,7 +22,7 @@ class LoRAConfig(BaseModel):
 class CreateModelRequest(BaseModel):
     base_model: str
     lora_config: Optional[LoRAConfig] = None
-    type: Optional[Literal["lora", "full"]] = "lora"
+    type: Optional[str] = None
 
 
 class CreateModelResponse(BaseModel):
@@ -29,6 +30,7 @@ class CreateModelResponse(BaseModel):
     base_model: str
     lora_config: Optional[LoRAConfig] = None
     status: str = "created"
+    request_id: str
 
 
 class ModelInfoResponse(BaseModel):
@@ -157,16 +159,21 @@ class GetServerCapabilitiesResponse(BaseModel):
 async def create_model(request: CreateModelRequest):
     """Create a new model, optionally with a LoRA adapter."""
     model_id = f"model_{uuid4().hex[:8]}"
+    request_id = f"req_{uuid4().hex[:8]}"
 
     model_data = {
         "model_id": model_id,
         "base_model": request.base_model,
         "lora_config": request.lora_config,
-        "status": "created"
+        "status": "created",
+        "request_id": request_id
     }
 
     models_db[model_id] = model_data
     checkpoints_db[model_id] = []
+
+    # Store the future result
+    futures_db[request_id] = model_data
 
     return CreateModelResponse(**model_data)
 
@@ -318,6 +325,20 @@ async def get_server_capabilities():
         SupportedModel(model_name="Qwen/Qwen3-8B"),
     ]
     return GetServerCapabilitiesResponse(supported_models=supported_models)
+
+
+class RetrieveFutureRequest(BaseModel):
+    request_id: str
+
+
+# Futures endpoint
+@app.post("/api/v1/retrieve_future")
+async def retrieve_future(request: RetrieveFutureRequest):
+    """Retrieve the result of an async operation."""
+    if request.request_id not in futures_db:
+        raise HTTPException(status_code=404, detail="Future not found")
+
+    return futures_db[request.request_id]
 
 
 # Telemetry endpoint
