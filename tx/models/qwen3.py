@@ -77,22 +77,15 @@ class Qwen3Attention(nnx.Module):
         # Use jax.nn.dot_product_attention for efficient, platform-agnostic attention
         # This automatically uses FlashAttention (via CuDNN) on GPU or optimized XLA kernels on TPU
         # q, k, v are already in BTNH format (B=batch, T=seq_len, N=num_heads, H=head_dim)
-
-        # Prepare mask for dot_product_attention if needed
-        # attention_mask is [B, T] indicating which tokens are valid (1) vs padding (0)
-        mask = None
-        if attention_mask is not None:
-            # Convert to boolean: [B, T] -> [B, 1, 1, T] for broadcasting
-            mask = attention_mask[:, None, None, :].astype(bool)
-
         attn_output = jax.nn.dot_product_attention(
             q, k, v,
             scale=1.0 / jnp.sqrt(self.head_dim),
-            mask=mask,
+            mask=attention_mask[:, None, None, :].astype(bool) if attention_mask is not None else None,
             is_causal=True,
         )
 
-        # Compute attention weights if requested (using naive implementation for backward compatibility)
+        # Compute attention weights if requested (using naive implementation)
+        attn_weights = None
         if output_attentions:
             attn_weights = jnp.einsum("BMNH,BTNH->BNMT", q, k) / jnp.sqrt(self.head_dim)
             causal_mask = jnp.tril(jnp.ones((x.shape[1], x.shape[1])))[None, None, :, :]
@@ -100,8 +93,6 @@ class Qwen3Attention(nnx.Module):
                 causal_mask *= attention_mask[:, None, None, :]
             attn_weights = jnp.where(causal_mask == 0, -jnp.inf, attn_weights)
             attn_weights = nnx.softmax(attn_weights, axis=-1)
-        else:
-            attn_weights = None
 
         return self.o_proj(attn_output), attn_weights
         
