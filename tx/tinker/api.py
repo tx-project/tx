@@ -56,9 +56,8 @@ class ForwardInput(BaseModel):
 
 
 class ForwardBackwardInput(BaseModel):
-    input_ids: List[List[int]]
-    labels: List[List[int]]
-    attention_mask: Optional[List[List[int]]] = None
+    model_id: str
+    forward_backward_input: Dict[str, Any]
 
 
 class AdamParams(BaseModel):
@@ -129,6 +128,7 @@ class Checkpoint(BaseModel):
 class FutureResponse(BaseModel):
     future_id: str
     status: str = "pending"
+    request_id: Optional[str] = None
 
 
 class TelemetryEvent(BaseModel):
@@ -231,13 +231,29 @@ async def forward(model_id: str, forward_input: ForwardInput):
 
 
 @app.post("/api/v1/forward_backward", response_model=FutureResponse)
-async def forward_backward(model_id: str, forward_backward_input: ForwardBackwardInput):
+async def forward_backward(request: ForwardBackwardInput):
     """Compute and accumulate gradients."""
-    if model_id not in models_db:
+    if request.model_id not in models_db:
         raise HTTPException(status_code=404, detail="Model not found")
 
     future_id = f"future_{uuid4().hex[:8]}"
-    return FutureResponse(future_id=future_id, status="completed")
+    request_id = f"req_{uuid4().hex[:8]}"
+
+    # Store the future result with required fields
+    # Each loss_fn_output should contain a TensorData object
+    futures_db[request_id] = {
+        "loss_fn_output_type": "scalar",
+        "loss_fn_outputs": [{
+            "loss": {
+                "data": [0.5],
+                "dtype": "float32",
+                "shape": [1]
+            }
+        }],
+        "metrics": {}
+    }
+
+    return FutureResponse(future_id=future_id, status="completed", request_id=request_id)
 
 
 @app.post("/api/v1/optim_step", response_model=FutureResponse)
