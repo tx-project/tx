@@ -178,13 +178,18 @@ async def create_model(request: CreateModelRequest):
     return CreateModelResponse(**model_data)
 
 
+class GetInfoRequest(BaseModel):
+    model_id: str
+    type: Optional[str] = None
+
+
 @app.post("/api/v1/get_info", response_model=ModelInfoResponse)
-async def get_model_info(model_id: str, type: Optional[str] = None):
+async def get_model_info(request: GetInfoRequest):
     """Retrieve information about the current model."""
-    if model_id not in models_db:
+    if request.model_id not in models_db:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    return ModelInfoResponse(**models_db[model_id])
+    return ModelInfoResponse(**models_db[request.model_id])
 
 
 @app.post("/api/v1/unload_model", response_model=UnloadModelResponse)
