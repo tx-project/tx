@@ -227,7 +227,7 @@ async def root():
     """Root endpoint with API information."""
     return {
         "name": "Tinker API Mock",
-        "version": "1.0.0",
+        "version": "0.0.1",
         "endpoints": {
             "models": ["/api/v1/create_model", "/api/v1/get_info"],
             "training": ["/api/v1/forward_backward", "/api/v1/optim_step"],
