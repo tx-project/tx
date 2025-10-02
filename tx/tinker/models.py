@@ -22,11 +22,11 @@ class ModelDB(SQLModel, table=True):
 class FutureDB(SQLModel, table=True):
     __tablename__ = "futures"
 
-    request_id: str = Field(primary_key=True)
+    request_id: str = Field(primary_key=True, index=True)
     request_type: str  # "create_model", "forward_backward", "optim_step"
     model_id: str | None = None
     request_data: str  # JSON string with request details
     result_data: str | None = None  # JSON string with result, None if not yet processed
-    status: str = "pending"  # "pending", "completed", "failed"
+    status: str = Field(default="pending", index=True)  # "pending", "completed", "failed"
     created_at: datetime = Field(default_factory=datetime.utcnow)
     completed_at: datetime | None = None
