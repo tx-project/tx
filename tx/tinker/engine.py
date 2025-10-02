@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 from sqlmodel import create_engine, Session, select
 
-from tx.tinker.models import FutureDB, ModelDB, DB_PATH
+from tx.tinker.models import FutureDB, DB_PATH
 
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 engine = create_engine(DATABASE_URL, echo=False)
