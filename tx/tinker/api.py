@@ -1,12 +1,12 @@
 from fastapi import FastAPI, HTTPException, Depends, Request
 from pydantic import BaseModel
-from typing import Literal, Any
+from typing import Literal, Any, AsyncGenerator
 from uuid import uuid4
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
+from sqlalchemy.ext.asyncio import create_async_engine
 import json
 import asyncio
 import subprocess
@@ -48,9 +48,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Tinker API Mock", version="0.0.1", lifespan=lifespan)
 
 
-def get_db_engine(request: Request) -> AsyncEngine:
-    """Dependency to get the database engine from app state."""
-    return request.app.state.db_engine
+async def get_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
+    """Dependency to get a database session."""
+    async with AsyncSession(request.app.state.db_engine) as session:
+        yield session
 
 
 class LoRAConfig(BaseModel):
@@ -139,41 +140,40 @@ class GetServerCapabilitiesResponse(BaseModel):
 
 
 @app.post("/api/v1/create_model", response_model=CreateModelResponse)
-async def create_model(request: CreateModelRequest, db_engine: AsyncEngine = Depends(get_db_engine)):
+async def create_model(request: CreateModelRequest, session: AsyncSession = Depends(get_session)):
     """Create a new model, optionally with a LoRA adapter."""
     model_id = f"model_{uuid4().hex[:8]}"
     request_id = f"req_{uuid4().hex[:8]}"
 
-    async with AsyncSession(db_engine) as session:
-        # Store in models table
-        model_db = ModelDB(
-            model_id=model_id,
-            base_model=request.base_model,
-            lora_config=json.dumps(request.lora_config.model_dump()) if request.lora_config else None,
-            status="created",
-            request_id=request_id
-        )
-        session.add(model_db)
+    # Store in models table
+    model_db = ModelDB(
+        model_id=model_id,
+        base_model=request.base_model,
+        lora_config=json.dumps(request.lora_config.model_dump()) if request.lora_config else None,
+        status="created",
+        request_id=request_id
+    )
+    session.add(model_db)
 
-        # Store in futures table - result is the same as request for create_model
-        future_db = FutureDB(
-            request_id=request_id,
-            request_type="create_model",
-            model_id=model_id,
-            request_data=json.dumps(request.model_dump()),
-            result_data=json.dumps({
-                "model_id": model_id,
-                "base_model": request.base_model,
-                "lora_config": request.lora_config.model_dump() if request.lora_config else None,
-                "status": "created",
-                "request_id": request_id
-            }),
-            status="completed",
-            completed_at=datetime.now(timezone.utc)
-        )
-        session.add(future_db)
+    # Store in futures table - result is the same as request for create_model
+    future_db = FutureDB(
+        request_id=request_id,
+        request_type="create_model",
+        model_id=model_id,
+        request_data=json.dumps(request.model_dump()),
+        result_data=json.dumps({
+            "model_id": model_id,
+            "base_model": request.base_model,
+            "lora_config": request.lora_config.model_dump() if request.lora_config else None,
+            "status": "created",
+            "request_id": request_id
+        }),
+        status="completed",
+        completed_at=datetime.now(timezone.utc)
+    )
+    session.add(future_db)
 
-        await session.commit()
+    await session.commit()
 
     return CreateModelResponse(
         model_id=model_id,
@@ -190,87 +190,84 @@ class GetInfoRequest(BaseModel):
 
 
 @app.post("/api/v1/get_info", response_model=ModelInfoResponse)
-async def get_model_info(request: GetInfoRequest, db_engine: AsyncEngine = Depends(get_db_engine)):
+async def get_model_info(request: GetInfoRequest, session: AsyncSession = Depends(get_session)):
     """Retrieve information about the current model."""
-    async with AsyncSession(db_engine) as session:
-        statement = select(ModelDB).where(ModelDB.model_id == request.model_id)
-        result = await session.exec(statement)
-        model = result.first()
+    statement = select(ModelDB).where(ModelDB.model_id == request.model_id)
+    result = await session.exec(statement)
+    model = result.first()
 
-        if not model:
-            raise HTTPException(status_code=404, detail="Model not found")
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
 
-        lora_config = None
-        if model.lora_config:
-            lora_config = LoRAConfig(**json.loads(model.lora_config))
+    lora_config = None
+    if model.lora_config:
+        lora_config = LoRAConfig(**json.loads(model.lora_config))
 
-        model_data = ModelData(
-            base_model=model.base_model,
-            lora_config=lora_config,
-            model_name=model.base_model
-        )
+    model_data = ModelData(
+        base_model=model.base_model,
+        lora_config=lora_config,
+        model_name=model.base_model
+    )
 
-        return ModelInfoResponse(
-            model_id=model.model_id,
-            status=model.status,
-            model_data=model_data
-        )
+    return ModelInfoResponse(
+        model_id=model.model_id,
+        status=model.status,
+        model_data=model_data
+    )
 
 
 @app.post("/api/v1/forward_backward", response_model=FutureResponse)
-async def forward_backward(request: ForwardBackwardInput, db_engine: AsyncEngine = Depends(get_db_engine)):
+async def forward_backward(request: ForwardBackwardInput, session: AsyncSession = Depends(get_session)):
     """Compute and accumulate gradients."""
-    async with AsyncSession(db_engine) as session:
-        statement = select(ModelDB).where(ModelDB.model_id == request.model_id)
-        result = await session.exec(statement)
-        model = result.first()
+    statement = select(ModelDB).where(ModelDB.model_id == request.model_id)
+    result = await session.exec(statement)
+    model = result.first()
 
-        if not model:
-            raise HTTPException(status_code=404, detail="Model not found")
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
 
-        request_id = f"req_{uuid4().hex[:8]}"
+    request_id = f"req_{uuid4().hex[:8]}"
 
-        # Store the request for background processing
-        future_db = FutureDB(
-            request_id=request_id,
-            request_type="forward_backward",
-            model_id=request.model_id,
-            request_data=json.dumps(request.model_dump()),
-            result_data=None,  # Will be filled by background worker
-            status="pending"
-        )
-        session.add(future_db)
-        await session.commit()
+    # Store the request for background processing
+    future_db = FutureDB(
+        request_id=request_id,
+        request_type="forward_backward",
+        model_id=request.model_id,
+        request_data=json.dumps(request.model_dump()),
+        result_data=None,  # Will be filled by background worker
+        status="pending"
+    )
+    session.add(future_db)
+    await session.commit()
 
-        return FutureResponse(future_id=request_id, status="pending", request_id=request_id)
+    return FutureResponse(future_id=request_id, status="pending", request_id=request_id)
 
 
 @app.post("/api/v1/optim_step", response_model=FutureResponse)
-async def optim_step(request: OptimStepRequest, db_engine: AsyncEngine = Depends(get_db_engine)):
+async def optim_step(request: OptimStepRequest, session: AsyncSession = Depends(get_session)):
     """Update model using accumulated gradients."""
-    async with AsyncSession(db_engine) as session:
-        statement = select(ModelDB).where(ModelDB.model_id == request.model_id)
-        result = await session.exec(statement)
-        model = result.first()
+    statement = select(ModelDB).where(ModelDB.model_id == request.model_id)
+    result = await session.exec(statement)
+    model = result.first()
 
-        if not model:
-            raise HTTPException(status_code=404, detail="Model not found")
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
 
-        request_id = f"req_{uuid4().hex[:8]}"
+    request_id = f"req_{uuid4().hex[:8]}"
 
-        # Store the request for background processing
-        future_db = FutureDB(
-            request_id=request_id,
-            request_type="optim_step",
-            model_id=request.model_id,
-            request_data=json.dumps(request.model_dump()),
-            result_data=None,  # Will be filled by background worker
-            status="pending"
-        )
-        session.add(future_db)
-        await session.commit()
+    # Store the request for background processing
+    future_db = FutureDB(
+        request_id=request_id,
+        request_type="optim_step",
+        model_id=request.model_id,
+        request_data=json.dumps(request.model_dump()),
+        result_data=None,  # Will be filled by background worker
+        status="pending"
+    )
+    session.add(future_db)
+    await session.commit()
 
-        return FutureResponse(future_id=request_id, status="pending", request_id=request_id)
+    return FutureResponse(future_id=request_id, status="pending", request_id=request_id)
 
 
 @app.get("/api/v1/get_server_capabilities", response_model=GetServerCapabilitiesResponse)
@@ -287,13 +284,13 @@ class RetrieveFutureRequest(BaseModel):
 
 
 @app.post("/api/v1/retrieve_future")
-async def retrieve_future(request: RetrieveFutureRequest, db_engine: AsyncEngine = Depends(get_db_engine)):
+async def retrieve_future(request: RetrieveFutureRequest, req: Request):
     """Retrieve the result of an async operation, waiting until it's available."""
     timeout = 300  # 5 minutes
     poll_interval = 0.1  # 100ms
 
     for _ in range(int(timeout / poll_interval)):
-        async with AsyncSession(db_engine) as session:
+        async with AsyncSession(req.app.state.db_engine) as session:
             statement = select(FutureDB).where(FutureDB.request_id == request.request_id)
             result = await session.exec(statement)
             future = result.first()
