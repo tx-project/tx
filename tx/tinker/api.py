@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Literal, Any
 from uuid import uuid4
 from datetime import datetime, timezone
+from contextlib import asynccontextmanager
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -12,15 +13,10 @@ import subprocess
 
 from tx.tinker.models import ModelDB, FutureDB, DB_PATH
 
-app = FastAPI(title="Tinker API Mock", version="0.0.1")
-
 # SQLite database path
 DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 
 engine = create_async_engine(DATABASE_URL, echo=False)
-
-# Background engine process
-background_engine_process = None
 
 
 async def init_db():
@@ -29,11 +25,10 @@ async def init_db():
         await conn.run_sync(SQLModel.metadata.create_all)
 
 
-@app.on_event("startup")
-async def startup():
-    """Initialize database and start background engine on startup."""
-    global background_engine_process
-
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for startup and shutdown."""
+    # Startup
     await init_db()
 
     # Start background engine process using uv with tinker extra
@@ -44,12 +39,9 @@ async def startup():
     )
     print(f"Started background engine with PID {background_engine_process.pid}")
 
+    yield
 
-@app.on_event("shutdown")
-async def shutdown():
-    """Stop background engine on shutdown."""
-    global background_engine_process
-
+    # Shutdown
     if background_engine_process:
         print(f"Stopping background engine (PID {background_engine_process.pid})")
         background_engine_process.terminate()
@@ -59,6 +51,9 @@ async def shutdown():
             background_engine_process.kill()
             background_engine_process.wait()
         print("Background engine stopped")
+
+
+app = FastAPI(title="Tinker API Mock", version="0.0.1", lifespan=lifespan)
 
 
 class LoRAConfig(BaseModel):
