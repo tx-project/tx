@@ -1,7 +1,7 @@
 """Background engine for processing training requests."""
 import time
 from datetime import datetime, timezone
-from sqlmodel import create_engine, Session, select, Engine
+from sqlmodel import create_engine, Session, select
 
 from tx.tinker.models import FutureDB, DB_PATH
 
@@ -11,7 +11,7 @@ class TinkerEngine:
 
     def __init__(self, db_path=DB_PATH):
         """Initialize the engine with a database connection."""
-        self.db_engine: Engine = create_engine(f"sqlite:///{db_path}", echo=False)
+        self.db_engine = create_engine(f"sqlite:///{db_path}", echo=False)
 
     def process_forward_backward(self, request_id: str, model_id: str, request_data: dict) -> dict:
         """Process a forward_backward request and return mock results."""
