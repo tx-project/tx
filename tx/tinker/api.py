@@ -4,48 +4,24 @@ from typing import Literal, Any
 from uuid import uuid4
 from pathlib import Path
 from datetime import datetime
-from sqlmodel import SQLModel, Field, select
+from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
 import json
 import asyncio
 import subprocess
 
+from tx.tinker.models import ModelDB, FutureDB, DB_PATH
+
 app = FastAPI(title="Tinker API Mock", version="0.0.1")
 
 # SQLite database path
-DB_PATH = Path(__file__).parent / "tinker.db"
 DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 
 engine = create_async_engine(DATABASE_URL, echo=False)
 
 # Background engine process
 background_engine_process = None
-
-
-# SQLModel table definitions
-class ModelDB(SQLModel, table=True):
-    __tablename__ = "models"
-
-    model_id: str = Field(primary_key=True)
-    base_model: str
-    lora_config: str | None = None  # JSON string
-    status: str
-    request_id: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
-
-class FutureDB(SQLModel, table=True):
-    __tablename__ = "futures"
-
-    request_id: str = Field(primary_key=True)
-    request_type: str  # "create_model", "forward_backward", "optim_step"
-    model_id: str | None = None
-    request_data: str  # JSON string with request details
-    result_data: str | None = None  # JSON string with result, None if not yet processed
-    status: str = "pending"  # "pending", "completed", "failed"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    completed_at: datetime | None = None
 
 
 async def init_db():

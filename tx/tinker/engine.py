@@ -2,13 +2,9 @@
 import json
 import time
 from datetime import datetime
-from pathlib import Path
 from sqlmodel import create_engine, Session, select
 
-# Import models from api.py
-import sys
-sys.path.append(str(Path(__file__).parent))
-from api import FutureDB, ModelDB, DB_PATH
+from tx.tinker.models import FutureDB, ModelDB, DB_PATH
 
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 engine = create_engine(DATABASE_URL, echo=False)
