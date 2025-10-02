@@ -8,6 +8,7 @@ from tinker import types
 @pytest.fixture(scope="module")
 def api_server():
     """Start the FastAPI server for testing."""
+    """
     process = subprocess.Popen(
         ["uv", "run", "--extra", "tinker", "uvicorn", "tx.tinker.api:app", "--host", "0.0.0.0", "--port", "8000"],
         stdout=subprocess.PIPE,
@@ -19,6 +20,8 @@ def api_server():
     # Cleanup
     process.terminate()
     process.wait(timeout=5)
+    """
+    pass
 
 
 @pytest.fixture
@@ -31,12 +34,12 @@ def test_capabilities(service_client):
     """Test the get_server_capabilities endpoint."""
     capabilities = service_client.get_server_capabilities()
     model_names = [item.model_name for item in capabilities.supported_models]
-    assert "Qwen/Qwen3-8B" in model_names
+    assert "Qwen/Qwen3-0.6B" in model_names
 
 
 def test_training_workflow(service_client):
     """Test a complete training workflow."""
-    base_model = "Qwen/Qwen3-8B"
+    base_model = "Qwen/Qwen3-0.6B"
     training_client = service_client.create_lora_training_client(
         base_model=base_model
     )
