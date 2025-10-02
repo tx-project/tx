@@ -1,13 +1,59 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Literal, Any
+from typing import Literal, Any, Optional
 from uuid import uuid4
+from pathlib import Path
+from datetime import datetime
+from sqlmodel import SQLModel, Field, select
+from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine
+import json
+import asyncio
 
 app = FastAPI(title="Tinker API Mock", version="0.0.1")
 
-# In-memory storage for models
-models_db: dict[str, dict[str, Any]] = {}
-futures_db: dict[str, dict[str, Any]] = {}
+# SQLite database path
+DB_PATH = Path(__file__).parent / "tinker.db"
+DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
+
+engine = create_async_engine(DATABASE_URL, echo=False)
+
+
+# SQLModel table definitions
+class ModelDB(SQLModel, table=True):
+    __tablename__ = "models"
+
+    model_id: str = Field(primary_key=True)
+    base_model: str
+    lora_config: Optional[str] = None  # JSON string
+    status: str
+    request_id: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class FutureDB(SQLModel, table=True):
+    __tablename__ = "futures"
+
+    request_id: str = Field(primary_key=True)
+    request_type: str  # "create_model", "forward_backward", "optim_step"
+    model_id: Optional[str] = None
+    request_data: str  # JSON string with request details
+    result_data: Optional[str] = None  # JSON string with result, None if not yet processed
+    status: str = "pending"  # "pending", "completed", "failed"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: Optional[datetime] = None
+
+
+async def init_db():
+    """Initialize the SQLite database with required tables."""
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+
+
+@app.on_event("startup")
+async def startup():
+    """Initialize database on startup."""
+    await init_db()
 
 
 class LoRAConfig(BaseModel):
@@ -101,16 +147,37 @@ async def create_model(request: CreateModelRequest):
     model_id = f"model_{uuid4().hex[:8]}"
     request_id = f"req_{uuid4().hex[:8]}"
 
-    model_data = {
-        "model_id": model_id,
-        "base_model": request.base_model,
-        "lora_config": request.lora_config,
-        "status": "created",
-        "request_id": request_id
-    }
+    async with AsyncSession(engine) as session:
+        # Store in models table
+        model_db = ModelDB(
+            model_id=model_id,
+            base_model=request.base_model,
+            lora_config=json.dumps(request.lora_config.model_dump()) if request.lora_config else None,
+            status="created",
+            request_id=request_id
+        )
+        session.add(model_db)
 
-    models_db[model_id] = model_data
-    futures_db[request_id] = model_data
+        # Store in futures table
+        model_data = {
+            "model_id": model_id,
+            "base_model": request.base_model,
+            "lora_config": request.lora_config.model_dump() if request.lora_config else None,
+            "status": "created",
+            "request_id": request_id
+        }
+        future_db = FutureDB(
+            request_id=request_id,
+            request_type="create_model",
+            model_id=model_id,
+            request_data=json.dumps(request.model_dump()),
+            result_data=json.dumps(model_data),
+            status="completed",
+            completed_at=datetime.utcnow()
+        )
+        session.add(future_db)
+
+        await session.commit()
 
     return CreateModelResponse(
         model_id=model_id,
@@ -129,55 +196,85 @@ class GetInfoRequest(BaseModel):
 @app.post("/api/v1/get_info", response_model=ModelInfoResponse)
 async def get_model_info(request: GetInfoRequest):
     """Retrieve information about the current model."""
-    if request.model_id not in models_db:
-        raise HTTPException(status_code=404, detail="Model not found")
+    async with AsyncSession(engine) as session:
+        statement = select(ModelDB).where(ModelDB.model_id == request.model_id)
+        result = await session.exec(statement)
+        model = result.first()
 
-    model = models_db[request.model_id]
-    model_data = ModelData(
-        base_model=model["base_model"],
-        lora_config=model["lora_config"],
-        model_name=model["base_model"]
-    )
+        if not model:
+            raise HTTPException(status_code=404, detail="Model not found")
 
-    return ModelInfoResponse(
-        model_id=model["model_id"],
-        status=model["status"],
-        model_data=model_data
-    )
+        lora_config = None
+        if model.lora_config:
+            lora_config = LoRAConfig(**json.loads(model.lora_config))
+
+        model_data = ModelData(
+            base_model=model.base_model,
+            lora_config=lora_config,
+            model_name=model.base_model
+        )
+
+        return ModelInfoResponse(
+            model_id=model.model_id,
+            status=model.status,
+            model_data=model_data
+        )
 
 
 @app.post("/api/v1/forward_backward", response_model=FutureResponse)
 async def forward_backward(request: ForwardBackwardInput):
     """Compute and accumulate gradients."""
-    if request.model_id not in models_db:
-        raise HTTPException(status_code=404, detail="Model not found")
+    async with AsyncSession(engine) as session:
+        statement = select(ModelDB).where(ModelDB.model_id == request.model_id)
+        result = await session.exec(statement)
+        model = result.first()
 
-    request_id = f"req_{uuid4().hex[:8]}"
-    futures_db[request_id] = {
-        "loss_fn_output_type": "scalar",
-        "loss_fn_outputs": [{
-            "loss": {
-                "data": [0.5],
-                "dtype": "float32",
-                "shape": [1]
-            }
-        }],
-        "metrics": {}
-    }
+        if not model:
+            raise HTTPException(status_code=404, detail="Model not found")
 
-    return FutureResponse(future_id=request_id, status="completed", request_id=request_id)
+        request_id = f"req_{uuid4().hex[:8]}"
+
+        # Store the request for background processing
+        future_db = FutureDB(
+            request_id=request_id,
+            request_type="forward_backward",
+            model_id=request.model_id,
+            request_data=json.dumps(request.model_dump()),
+            result_data=None,  # Will be filled by background worker
+            status="pending"
+        )
+        session.add(future_db)
+        await session.commit()
+
+        return FutureResponse(future_id=request_id, status="pending", request_id=request_id)
 
 
 @app.post("/api/v1/optim_step", response_model=FutureResponse)
 async def optim_step(request: OptimStepRequest):
     """Update model using accumulated gradients."""
-    if request.model_id not in models_db:
-        raise HTTPException(status_code=404, detail="Model not found")
+    async with AsyncSession(engine) as session:
+        statement = select(ModelDB).where(ModelDB.model_id == request.model_id)
+        result = await session.exec(statement)
+        model = result.first()
 
-    request_id = f"req_{uuid4().hex[:8]}"
-    futures_db[request_id] = {}
+        if not model:
+            raise HTTPException(status_code=404, detail="Model not found")
 
-    return FutureResponse(future_id=request_id, status="completed", request_id=request_id)
+        request_id = f"req_{uuid4().hex[:8]}"
+
+        # Store the request for background processing
+        future_db = FutureDB(
+            request_id=request_id,
+            request_type="optim_step",
+            model_id=request.model_id,
+            request_data=json.dumps(request.model_dump()),
+            result_data=None,  # Will be filled by background worker
+            status="pending"
+        )
+        session.add(future_db)
+        await session.commit()
+
+        return FutureResponse(future_id=request_id, status="pending", request_id=request_id)
 
 
 @app.get("/api/v1/get_server_capabilities", response_model=GetServerCapabilitiesResponse)
@@ -195,11 +292,29 @@ class RetrieveFutureRequest(BaseModel):
 
 @app.post("/api/v1/retrieve_future")
 async def retrieve_future(request: RetrieveFutureRequest):
-    """Retrieve the result of an async operation."""
-    if request.request_id not in futures_db:
-        raise HTTPException(status_code=404, detail="Future not found")
+    """Retrieve the result of an async operation, waiting until it's available."""
+    timeout = 300  # 5 minutes
+    poll_interval = 0.1  # 100ms
 
-    return futures_db[request.request_id]
+    for _ in range(int(timeout / poll_interval)):
+        async with AsyncSession(engine) as session:
+            statement = select(FutureDB).where(FutureDB.request_id == request.request_id)
+            result = await session.exec(statement)
+            future = result.first()
+
+            if not future:
+                raise HTTPException(status_code=404, detail="Future not found")
+
+            if future.status == "completed" and future.result_data:
+                return json.loads(future.result_data)
+
+            if future.status == "failed":
+                error = json.loads(future.result_data).get("error", "Unknown error") if future.result_data else "Unknown error"
+                raise HTTPException(status_code=500, detail=error)
+
+        await asyncio.sleep(poll_interval)
+
+    raise HTTPException(status_code=408, detail="Timeout waiting for result")
 
 
 @app.post("/api/v1/telemetry", response_model=TelemetryResponse)
