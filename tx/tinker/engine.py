@@ -1,5 +1,4 @@
 """Background engine for processing training requests."""
-import json
 import time
 from datetime import datetime, timezone
 from sqlmodel import create_engine, Session, select
@@ -44,27 +43,25 @@ def process_pending_requests():
 
                 for future in pending:
                     try:
-                        request_data = json.loads(future.request_data)
-
                         # Process based on request type
                         if future.request_type == "forward_backward":
                             result_data = process_forward_backward(
                                 future.request_id,
                                 future.model_id,
-                                request_data
+                                future.request_data
                             )
                         elif future.request_type == "optim_step":
                             result_data = process_optim_step(
                                 future.request_id,
                                 future.model_id,
-                                request_data
+                                future.request_data
                             )
                         else:
                             print(f"Unknown request type: {future.request_type}")
                             continue
 
                         # Update the future with results
-                        future.result_data = json.dumps(result_data)
+                        future.result_data = result_data
                         future.status = "completed"
                         future.completed_at = datetime.now(timezone.utc)
                         session.add(future)
@@ -74,7 +71,7 @@ def process_pending_requests():
 
                     except Exception as e:
                         print(f"Error processing request {future.request_id}: {e}")
-                        future.result_data = json.dumps({"error": str(e)})
+                        future.result_data = {"error": str(e)}
                         future.status = "failed"
                         future.completed_at = datetime.now(timezone.utc)
                         session.add(future)

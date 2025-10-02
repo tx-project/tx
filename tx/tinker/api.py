@@ -7,13 +7,13 @@ from contextlib import asynccontextmanager
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
-import json
 import asyncio
 import subprocess
 import logging
 
 from tx.tinker.models import ModelDB, FutureDB, DB_PATH
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -150,7 +150,7 @@ async def create_model(request: CreateModelRequest, session: AsyncSession = Depe
     model_db = ModelDB(
         model_id=model_id,
         base_model=request.base_model,
-        lora_config=json.dumps(request.lora_config.model_dump()) if request.lora_config else None,
+        lora_config=request.lora_config.model_dump() if request.lora_config else None,
         status="created",
         request_id=request_id
     )
@@ -161,14 +161,14 @@ async def create_model(request: CreateModelRequest, session: AsyncSession = Depe
         request_id=request_id,
         request_type="create_model",
         model_id=model_id,
-        request_data=json.dumps(request.model_dump()),
-        result_data=json.dumps({
+        request_data=request.model_dump(),
+        result_data={
             "model_id": model_id,
             "base_model": request.base_model,
             "lora_config": request.lora_config.model_dump() if request.lora_config else None,
             "status": "created",
             "request_id": request_id
-        }),
+        },
         status="completed",
         completed_at=datetime.now(timezone.utc)
     )
@@ -202,7 +202,7 @@ async def get_model_info(request: GetInfoRequest, session: AsyncSession = Depend
 
     lora_config = None
     if model.lora_config:
-        lora_config = LoRAConfig(**json.loads(model.lora_config))
+        lora_config = LoRAConfig(**model.lora_config)
 
     model_data = ModelData(
         base_model=model.base_model,
@@ -234,7 +234,7 @@ async def forward_backward(request: ForwardBackwardInput, session: AsyncSession 
         request_id=request_id,
         request_type="forward_backward",
         model_id=request.model_id,
-        request_data=json.dumps(request.model_dump()),
+        request_data=request.model_dump(),
         result_data=None,  # Will be filled by background worker
         status="pending"
     )
@@ -261,7 +261,7 @@ async def optim_step(request: OptimStepRequest, session: AsyncSession = Depends(
         request_id=request_id,
         request_type="optim_step",
         model_id=request.model_id,
-        request_data=json.dumps(request.model_dump()),
+        request_data=request.model_dump(),
         result_data=None,  # Will be filled by background worker
         status="pending"
     )
@@ -290,7 +290,7 @@ async def retrieve_future(request: RetrieveFutureRequest, req: Request):
     timeout = 300  # 5 minutes
     poll_interval = 0.1  # 100ms
 
-    for _ in range(int(timeout / poll_interval)):
+    for i in range(int(timeout / poll_interval)):
         async with AsyncSession(req.app.state.db_engine) as session:
             statement = select(FutureDB).where(FutureDB.request_id == request.request_id)
             result = await session.exec(statement)
@@ -299,11 +299,11 @@ async def retrieve_future(request: RetrieveFutureRequest, req: Request):
             if not future:
                 raise HTTPException(status_code=404, detail="Future not found")
 
-            if future.status == "completed" and future.result_data:
-                return json.loads(future.result_data)
+            if future.status == "completed":
+                return future.result_data
 
             if future.status == "failed":
-                error = json.loads(future.result_data).get("error", "Unknown error") if future.result_data else "Unknown error"
+                error = future.result_data.get("error", "Unknown error") if future.result_data else "Unknown error"
                 raise HTTPException(status_code=500, detail=error)
 
         await asyncio.sleep(poll_interval)
