@@ -1,9 +1,12 @@
 """Background engine for processing training requests."""
 import time
+import logging
 from datetime import datetime, timezone
 from sqlmodel import create_engine, Session, select
 
 from tx.tinker.models import FutureDB, DB_PATH
+
+logger = logging.getLogger(__name__)
 
 
 class TinkerEngine:
@@ -58,7 +61,7 @@ class TinkerEngine:
                                 future.request_data
                             )
                         else:
-                            print(f"Unknown request type: {future.request_type}")
+                            logger.warning(f"Unknown request type: {future.request_type}")
                             continue
 
                         # Update the future with results
@@ -68,10 +71,10 @@ class TinkerEngine:
                         session.add(future)
                         session.commit()
 
-                        print(f"Completed {future.request_type} request {future.request_id}")
+                        logger.info(f"Completed {future.request_type} request {future.request_id}")
 
                     except Exception as e:
-                        print(f"Error processing request {future.request_id}: {e}")
+                        logger.error(f"Error processing request {future.request_id}: {e}")
                         future.result_data = {"error": str(e)}
                         future.status = "failed"
                         future.completed_at = datetime.now(timezone.utc)
@@ -83,12 +86,13 @@ class TinkerEngine:
 
     def run(self):
         """Entry point to start the engine."""
-        print("Starting background engine...")
+        logger.info("Starting background engine...")
         self.process_pending_requests()
 
 
 def main():
     """Entry point for the background engine."""
+    logging.basicConfig(level=logging.INFO)
     TinkerEngine().run()
 
 
