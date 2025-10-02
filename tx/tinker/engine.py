@@ -37,50 +37,46 @@ class TinkerEngine:
     def process_pending_requests(self):
         """Main loop to process pending requests."""
         while True:
-            try:
-                with Session(self.db_engine) as session:
-                    # Get all pending requests
-                    statement = select(FutureDB).where(FutureDB.status == "pending")
-                    pending = session.exec(statement).all()
+            with Session(self.db_engine) as session:
+                # Get all pending requests
+                statement = select(FutureDB).where(FutureDB.status == "pending")
+                pending = session.exec(statement).all()
 
-                    for future in pending:
-                        try:
-                            # Process based on request type
-                            if future.request_type == "forward_backward":
-                                result_data = self.process_forward_backward(
-                                    future.request_id,
-                                    future.model_id,
-                                    future.request_data
-                                )
-                            elif future.request_type == "optim_step":
-                                result_data = self.process_optim_step(
-                                    future.request_id,
-                                    future.model_id,
-                                    future.request_data
-                                )
-                            else:
-                                print(f"Unknown request type: {future.request_type}")
-                                continue
+                for future in pending:
+                    try:
+                        # Process based on request type
+                        if future.request_type == "forward_backward":
+                            result_data = self.process_forward_backward(
+                                future.request_id,
+                                future.model_id,
+                                future.request_data
+                            )
+                        elif future.request_type == "optim_step":
+                            result_data = self.process_optim_step(
+                                future.request_id,
+                                future.model_id,
+                                future.request_data
+                            )
+                        else:
+                            print(f"Unknown request type: {future.request_type}")
+                            continue
 
-                            # Update the future with results
-                            future.result_data = result_data
-                            future.status = "completed"
-                            future.completed_at = datetime.now(timezone.utc)
-                            session.add(future)
-                            session.commit()
+                        # Update the future with results
+                        future.result_data = result_data
+                        future.status = "completed"
+                        future.completed_at = datetime.now(timezone.utc)
+                        session.add(future)
+                        session.commit()
 
-                            print(f"Completed {future.request_type} request {future.request_id}")
+                        print(f"Completed {future.request_type} request {future.request_id}")
 
-                        except Exception as e:
-                            print(f"Error processing request {future.request_id}: {e}")
-                            future.result_data = {"error": str(e)}
-                            future.status = "failed"
-                            future.completed_at = datetime.now(timezone.utc)
-                            session.add(future)
-                            session.commit()
-
-            except Exception as e:
-                print(f"Error in main loop: {e}")
+                    except Exception as e:
+                        print(f"Error processing request {future.request_id}: {e}")
+                        future.result_data = {"error": str(e)}
+                        future.status = "failed"
+                        future.completed_at = datetime.now(timezone.utc)
+                        session.add(future)
+                        session.commit()
 
             # Poll every 100ms
             time.sleep(0.1)
