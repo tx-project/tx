@@ -1,5 +1,5 @@
 """Database models for the Tinker API."""
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from sqlmodel import SQLModel, Field
 
@@ -16,7 +16,7 @@ class ModelDB(SQLModel, table=True):
     lora_config: str | None = None  # JSON string
     status: str
     request_id: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class FutureDB(SQLModel, table=True):
@@ -28,5 +28,5 @@ class FutureDB(SQLModel, table=True):
     request_data: str  # JSON string with request details
     result_data: str | None = None  # JSON string with result, None if not yet processed
     status: str = Field(default="pending", index=True)  # "pending", "completed", "failed"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = None
