@@ -2,7 +2,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Literal, Any
 from uuid import uuid4
-from pathlib import Path
 from datetime import datetime
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -38,9 +37,8 @@ async def startup():
     await init_db()
 
     # Start background engine process using uv with tinker extra
-    engine_path = Path(__file__).parent / "engine.py"
     background_engine_process = subprocess.Popen(
-        ["uv", "run", "--extra", "tinker", "python", str(engine_path)],
+        ["uv", "run", "--extra", "tinker", "python", "-m", "tx.tinker.engine"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
     )
