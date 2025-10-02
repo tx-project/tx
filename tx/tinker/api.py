@@ -10,7 +10,6 @@ models_db: dict[str, dict[str, Any]] = {}
 futures_db: dict[str, dict[str, Any]] = {}
 
 
-# Pydantic Models
 class LoRAConfig(BaseModel):
     r: int = 8
     lora_alpha: int = 16
@@ -96,7 +95,6 @@ class GetServerCapabilitiesResponse(BaseModel):
     supported_models: list[SupportedModel]
 
 
-# Models endpoints
 @app.post("/api/v1/create_model", response_model=CreateModelResponse)
 async def create_model(request: CreateModelRequest):
     """Create a new model, optionally with a LoRA adapter."""
@@ -112,8 +110,6 @@ async def create_model(request: CreateModelRequest):
     }
 
     models_db[model_id] = model_data
-
-    # Store the future result
     futures_db[request_id] = model_data
 
     return CreateModelResponse(
@@ -157,9 +153,6 @@ async def forward_backward(request: ForwardBackwardInput):
         raise HTTPException(status_code=404, detail="Model not found")
 
     request_id = f"req_{uuid4().hex[:8]}"
-
-    # Store the future result with required fields
-    # Each loss_fn_output should contain a TensorData object
     futures_db[request_id] = {
         "loss_fn_output_type": "scalar",
         "loss_fn_outputs": [{
@@ -182,18 +175,14 @@ async def optim_step(request: OptimStepRequest):
         raise HTTPException(status_code=404, detail="Model not found")
 
     request_id = f"req_{uuid4().hex[:8]}"
-
-    # Store empty result for optim_step
     futures_db[request_id] = {}
 
     return FutureResponse(future_id=request_id, status="completed", request_id=request_id)
 
 
-# Service endpoints
 @app.get("/api/v1/get_server_capabilities", response_model=GetServerCapabilitiesResponse)
 async def get_server_capabilities():
     """Retrieve information about supported models and server capabilities."""
-    # Return a list of commonly supported models
     supported_models = [
         SupportedModel(model_name="Qwen/Qwen3-8B"),
     ]
@@ -204,7 +193,6 @@ class RetrieveFutureRequest(BaseModel):
     request_id: str
 
 
-# Futures endpoint
 @app.post("/api/v1/retrieve_future")
 async def retrieve_future(request: RetrieveFutureRequest):
     """Retrieve the result of an async operation."""
@@ -214,7 +202,6 @@ async def retrieve_future(request: RetrieveFutureRequest):
     return futures_db[request.request_id]
 
 
-# Telemetry endpoint
 @app.post("/api/v1/telemetry", response_model=TelemetryResponse)
 async def send_telemetry(request: TelemetryRequest):
     """Accept batches of SDK telemetry events for analytics and diagnostics."""
