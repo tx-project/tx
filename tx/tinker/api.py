@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Literal, Any
 from uuid import uuid4
 
-app = FastAPI(title="Tinker API Mock", version="1.0.0")
+app = FastAPI(title="Tinker API Mock", version="0.0.1")
 
 # In-memory storage for models
 models_db: dict[str, dict[str, Any]] = {}
@@ -156,7 +156,6 @@ async def forward_backward(request: ForwardBackwardInput):
     if request.model_id not in models_db:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    future_id = f"future_{uuid4().hex[:8]}"
     request_id = f"req_{uuid4().hex[:8]}"
 
     # Store the future result with required fields
@@ -173,7 +172,7 @@ async def forward_backward(request: ForwardBackwardInput):
         "metrics": {}
     }
 
-    return FutureResponse(future_id=future_id, status="completed", request_id=request_id)
+    return FutureResponse(future_id=request_id, status="completed", request_id=request_id)
 
 
 @app.post("/api/v1/optim_step", response_model=FutureResponse)
@@ -182,13 +181,12 @@ async def optim_step(request: OptimStepRequest):
     if request.model_id not in models_db:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    future_id = f"future_{uuid4().hex[:8]}"
     request_id = f"req_{uuid4().hex[:8]}"
 
     # Store empty result for optim_step
     futures_db[request_id] = {}
 
-    return FutureResponse(future_id=future_id, status="completed", request_id=request_id)
+    return FutureResponse(future_id=request_id, status="completed", request_id=request_id)
 
 
 # Service endpoints
