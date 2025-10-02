@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Literal, Any
 from uuid import uuid4
@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 import json
 import asyncio
 import subprocess
@@ -16,20 +16,15 @@ from tx.tinker.models import ModelDB, FutureDB, DB_PATH
 # SQLite database path
 DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 
-engine = create_async_engine(DATABASE_URL, echo=False)
-
-
-async def init_db():
-    """Initialize the SQLite database with required tables."""
-    async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan event handler for startup and shutdown."""
     # Startup
-    await init_db()
+    app.state.db_engine = create_async_engine(DATABASE_URL, echo=False)
+
+    async with app.state.db_engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
 
     # Start background engine process using uv with tinker extra
     background_engine_process = subprocess.Popen(
@@ -54,6 +49,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Tinker API Mock", version="0.0.1", lifespan=lifespan)
+
+
+def get_db_engine(request: Request) -> AsyncEngine:
+    """Dependency to get the database engine from app state."""
+    return request.app.state.db_engine
 
 
 class LoRAConfig(BaseModel):
@@ -142,12 +142,12 @@ class GetServerCapabilitiesResponse(BaseModel):
 
 
 @app.post("/api/v1/create_model", response_model=CreateModelResponse)
-async def create_model(request: CreateModelRequest):
+async def create_model(request: CreateModelRequest, db_engine: AsyncEngine = Depends(get_db_engine)):
     """Create a new model, optionally with a LoRA adapter."""
     model_id = f"model_{uuid4().hex[:8]}"
     request_id = f"req_{uuid4().hex[:8]}"
 
-    async with AsyncSession(engine) as session:
+    async with AsyncSession(db_engine) as session:
         # Store in models table
         model_db = ModelDB(
             model_id=model_id,
@@ -193,9 +193,9 @@ class GetInfoRequest(BaseModel):
 
 
 @app.post("/api/v1/get_info", response_model=ModelInfoResponse)
-async def get_model_info(request: GetInfoRequest):
+async def get_model_info(request: GetInfoRequest, db_engine: AsyncEngine = Depends(get_db_engine)):
     """Retrieve information about the current model."""
-    async with AsyncSession(engine) as session:
+    async with AsyncSession(db_engine) as session:
         statement = select(ModelDB).where(ModelDB.model_id == request.model_id)
         result = await session.exec(statement)
         model = result.first()
@@ -221,9 +221,9 @@ async def get_model_info(request: GetInfoRequest):
 
 
 @app.post("/api/v1/forward_backward", response_model=FutureResponse)
-async def forward_backward(request: ForwardBackwardInput):
+async def forward_backward(request: ForwardBackwardInput, db_engine: AsyncEngine = Depends(get_db_engine)):
     """Compute and accumulate gradients."""
-    async with AsyncSession(engine) as session:
+    async with AsyncSession(db_engine) as session:
         statement = select(ModelDB).where(ModelDB.model_id == request.model_id)
         result = await session.exec(statement)
         model = result.first()
@@ -249,9 +249,9 @@ async def forward_backward(request: ForwardBackwardInput):
 
 
 @app.post("/api/v1/optim_step", response_model=FutureResponse)
-async def optim_step(request: OptimStepRequest):
+async def optim_step(request: OptimStepRequest, db_engine: AsyncEngine = Depends(get_db_engine)):
     """Update model using accumulated gradients."""
-    async with AsyncSession(engine) as session:
+    async with AsyncSession(db_engine) as session:
         statement = select(ModelDB).where(ModelDB.model_id == request.model_id)
         result = await session.exec(statement)
         model = result.first()
@@ -290,13 +290,13 @@ class RetrieveFutureRequest(BaseModel):
 
 
 @app.post("/api/v1/retrieve_future")
-async def retrieve_future(request: RetrieveFutureRequest):
+async def retrieve_future(request: RetrieveFutureRequest, db_engine: AsyncEngine = Depends(get_db_engine)):
     """Retrieve the result of an async operation, waiting until it's available."""
     timeout = 300  # 5 minutes
     poll_interval = 0.1  # 100ms
 
     for _ in range(int(timeout / poll_interval)):
-        async with AsyncSession(engine) as session:
+        async with AsyncSession(db_engine) as session:
             statement = select(FutureDB).where(FutureDB.request_id == request.request_id)
             result = await session.exec(statement)
             future = result.first()
