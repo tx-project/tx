@@ -27,20 +27,11 @@ def service_client(api_server):
     return tinker.ServiceClient(base_url="http://0.0.0.0:8000/", api_key="dummy")
 
 
-def test_example_workflow(service_client):
-    """Test the example workflow from the user."""
-    # Get server capabilities
+def test_capabilities(service_client):
+    """Test the get_server_capabilities endpoint."""
     capabilities = service_client.get_server_capabilities()
     model_names = [item.model_name for item in capabilities.supported_models]
     assert "Qwen/Qwen3-8B" in model_names
-
-    base_model = "Qwen/Qwen3-8B"
-    training_client = service_client.create_lora_training_client(
-        base_model=base_model
-    )
-
-    tokenizer = training_client.get_tokenizer()
-    assert tokenizer is not None
 
 
 def test_training_workflow(service_client):
