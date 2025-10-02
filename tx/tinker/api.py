@@ -20,13 +20,12 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan event handler for startup and shutdown."""
-    # Startup
+
     app.state.db_engine = create_async_engine(f"sqlite+aiosqlite:///{DB_PATH}", echo=False)
 
     async with app.state.db_engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
 
-    # Start background engine process using uv with tinker extra
     background_engine = subprocess.Popen(
         ["uv", "run", "--extra", "tinker", "-m", "tx.tinker.engine"]
     )
@@ -34,7 +33,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown
     logger.info(f"Stopping background engine (PID {background_engine.pid})")
     background_engine.terminate()
     try:
@@ -146,7 +144,6 @@ async def create_model(request: CreateModelRequest, session: AsyncSession = Depe
     model_id = f"model_{uuid4().hex[:8]}"
     request_id = f"req_{uuid4().hex[:8]}"
 
-    # Store in models table
     model_db = ModelDB(
         model_id=model_id,
         base_model=request.base_model,
@@ -156,7 +153,6 @@ async def create_model(request: CreateModelRequest, session: AsyncSession = Depe
     )
     session.add(model_db)
 
-    # Store in futures table - result is the same as request for create_model
     future_db = FutureDB(
         request_id=request_id,
         request_type="create_model",
@@ -229,7 +225,6 @@ async def forward_backward(request: ForwardBackwardInput, session: AsyncSession 
 
     request_id = f"req_{uuid4().hex[:8]}"
 
-    # Store the request for background processing
     future_db = FutureDB(
         request_id=request_id,
         request_type="forward_backward",
@@ -256,7 +251,6 @@ async def optim_step(request: OptimStepRequest, session: AsyncSession = Depends(
 
     request_id = f"req_{uuid4().hex[:8]}"
 
-    # Store the request for background processing
     future_db = FutureDB(
         request_id=request_id,
         request_type="optim_step",
