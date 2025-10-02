@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
 import json
 import asyncio
+import subprocess
 
 app = FastAPI(title="Tinker API Mock", version="0.0.1")
 
@@ -17,6 +18,9 @@ DB_PATH = Path(__file__).parent / "tinker.db"
 DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 
 engine = create_async_engine(DATABASE_URL, echo=False)
+
+# Background engine process
+background_engine_process = None
 
 
 # SQLModel table definitions
@@ -52,8 +56,35 @@ async def init_db():
 
 @app.on_event("startup")
 async def startup():
-    """Initialize database on startup."""
+    """Initialize database and start background engine on startup."""
+    global background_engine_process
+
     await init_db()
+
+    # Start background engine process using uv with tinker extra
+    engine_path = Path(__file__).parent / "engine.py"
+    background_engine_process = subprocess.Popen(
+        ["uv", "run", "--extra", "tinker", "python", str(engine_path)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    print(f"Started background engine with PID {background_engine_process.pid}")
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    """Stop background engine on shutdown."""
+    global background_engine_process
+
+    if background_engine_process:
+        print(f"Stopping background engine (PID {background_engine_process.pid})")
+        background_engine_process.terminate()
+        try:
+            background_engine_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            background_engine_process.kill()
+            background_engine_process.wait()
+        print("Background engine stopped")
 
 
 class LoRAConfig(BaseModel):
@@ -158,20 +189,19 @@ async def create_model(request: CreateModelRequest):
         )
         session.add(model_db)
 
-        # Store in futures table
-        model_data = {
-            "model_id": model_id,
-            "base_model": request.base_model,
-            "lora_config": request.lora_config.model_dump() if request.lora_config else None,
-            "status": "created",
-            "request_id": request_id
-        }
+        # Store in futures table - result is the same as request for create_model
         future_db = FutureDB(
             request_id=request_id,
             request_type="create_model",
             model_id=model_id,
             request_data=json.dumps(request.model_dump()),
-            result_data=json.dumps(model_data),
+            result_data=json.dumps({
+                "model_id": model_id,
+                "base_model": request.base_model,
+                "lora_config": request.lora_config.model_dump() if request.lora_config else None,
+                "status": "created",
+                "request_id": request_id
+            }),
             status="completed",
             completed_at=datetime.utcnow()
         )
