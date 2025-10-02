@@ -11,8 +11,7 @@ class TinkerEngine:
 
     def __init__(self, db_path=DB_PATH):
         """Initialize the engine with a database connection."""
-        database_url = f"sqlite:///{db_path}"
-        self.db_engine: Engine = create_engine(database_url, echo=False)
+        self.db_engine: Engine = create_engine(f"sqlite:///{db_path}", echo=False)
 
     def process_forward_backward(self, request_id: str, model_id: str, request_data: dict) -> dict:
         """Process a forward_backward request and return mock results."""
@@ -94,8 +93,7 @@ class TinkerEngine:
 
 def main():
     """Entry point for the background engine."""
-    engine = TinkerEngine()
-    engine.run()
+    TinkerEngine().run()
 
 
 if __name__ == "__main__":
