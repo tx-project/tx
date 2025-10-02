@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Literal, Any, Optional
+from typing import Literal, Any
 from uuid import uuid4
 from pathlib import Path
 from datetime import datetime
@@ -29,7 +29,7 @@ class ModelDB(SQLModel, table=True):
 
     model_id: str = Field(primary_key=True)
     base_model: str
-    lora_config: Optional[str] = None  # JSON string
+    lora_config: str | None = None  # JSON string
     status: str
     request_id: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -40,12 +40,12 @@ class FutureDB(SQLModel, table=True):
 
     request_id: str = Field(primary_key=True)
     request_type: str  # "create_model", "forward_backward", "optim_step"
-    model_id: Optional[str] = None
+    model_id: str | None = None
     request_data: str  # JSON string with request details
-    result_data: Optional[str] = None  # JSON string with result, None if not yet processed
+    result_data: str | None = None  # JSON string with result, None if not yet processed
     status: str = "pending"  # "pending", "completed", "failed"
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
 
 
 async def init_db():
