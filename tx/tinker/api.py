@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Literal, Any
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -177,7 +177,7 @@ async def create_model(request: CreateModelRequest):
                 "request_id": request_id
             }),
             status="completed",
-            completed_at=datetime.utcnow()
+            completed_at=datetime.now(timezone.utc)
         )
         session.add(future_db)
 

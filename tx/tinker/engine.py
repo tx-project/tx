@@ -1,7 +1,7 @@
 """Background engine for processing training requests."""
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlmodel import create_engine, Session, select
 
 from tx.tinker.models import FutureDB, DB_PATH
@@ -66,7 +66,7 @@ def process_pending_requests():
                         # Update the future with results
                         future.result_data = json.dumps(result_data)
                         future.status = "completed"
-                        future.completed_at = datetime.utcnow()
+                        future.completed_at = datetime.now(timezone.utc)
                         session.add(future)
                         session.commit()
 
@@ -76,7 +76,7 @@ def process_pending_requests():
                         print(f"Error processing request {future.request_id}: {e}")
                         future.result_data = json.dumps({"error": str(e)})
                         future.status = "failed"
-                        future.completed_at = datetime.utcnow()
+                        future.completed_at = datetime.now(timezone.utc)
                         session.add(future)
                         session.commit()
 
