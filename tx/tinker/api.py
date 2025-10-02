@@ -10,8 +10,11 @@ from sqlalchemy.ext.asyncio import create_async_engine
 import json
 import asyncio
 import subprocess
+import logging
 
 from tx.tinker.models import ModelDB, FutureDB, DB_PATH
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -24,25 +27,23 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(SQLModel.metadata.create_all)
 
     # Start background engine process using uv with tinker extra
-    background_engine_process = subprocess.Popen(
-        ["uv", "run", "--extra", "tinker", "python", "-m", "tx.tinker.engine"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
+    background_engine = subprocess.Popen(
+        ["uv", "run", "--extra", "tinker", "-m", "tx.tinker.engine"]
     )
-    print(f"Started background engine with PID {background_engine_process.pid}")
+    logger.info(f"Started background engine with PID {background_engine.pid}")
 
     yield
 
     # Shutdown
-    if background_engine_process:
-        print(f"Stopping background engine (PID {background_engine_process.pid})")
-        background_engine_process.terminate()
-        try:
-            background_engine_process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            background_engine_process.kill()
-            background_engine_process.wait()
-        print("Background engine stopped")
+    logger.info(f"Stopping background engine (PID {background_engine.pid})")
+    background_engine.terminate()
+    try:
+        background_engine.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        logger.warning(f"Background engine (PID {background_engine.pid}) did not terminate gracefully, killing")
+        background_engine.kill()
+        background_engine.wait()
+    logger.info("Background engine stopped")
 
 
 app = FastAPI(title="Tinker API Mock", version="0.0.1", lifespan=lifespan)
