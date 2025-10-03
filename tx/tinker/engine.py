@@ -137,17 +137,9 @@ class TinkerEngine:
             logger.warning(f"No accumulated gradients for model {model_id}, skipping optimizer step")
             return {}
 
-        # Update optimizer learning rate if provided
-        # adam_params = request_data.get("adam_params", {})
-        # if "lr" in adam_params:
-        #     lr = adam_params["lr"]
-        #     weight_decay = adam_params.get("weight_decay", 0.0)
-        #     # Recreate optimizer with new learning rate
-        #     optimizer = nnx.Optimizer(model, optax.adamw(lr, weight_decay=weight_decay), wrt=nnx.Param)
-        #     model_info["optimizer"] = optimizer
-
-        # Apply gradients
-        optimizer.update(model, grads)
+        adam_params = request_data.get("adam_params", {})
+        # TODO: Add weight decay and other parameter handling here
+        optimizer.update(model, grads, learning_rate=adam_params["lr"])
 
         # Clear accumulated gradients
         self.accumulated_grads[model_id] = None
