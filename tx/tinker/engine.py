@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 
 def loss_fn(model, batch):
     """Compute loss for a batch."""
-    logits = model(batch["text"], attention_mask=batch["attention_mask"])["logits"]
+    logits = model(batch["input_ids"], attention_mask=batch["attention_mask"])["logits"]
     loss = optax.softmax_cross_entropy_with_integer_labels(
-        logits=logits, labels=batch["target"]
+        logits=logits, labels=batch["target_ids"]
     )
     return loss.mean(), logits
 
@@ -95,17 +95,10 @@ class TinkerEngine:
             dtype=jnp.int32
         )
 
-        # Create batch
-        jax_batch = {
-            "text": input_ids,
-            "attention_mask": attention_mask,
-            "target": target_ids
-        }
-
         # Compute gradients
         model.train()
         grad_fn = nnx.value_and_grad(loss_fn, has_aux=True)
-        (loss, logits), grads = grad_fn(model, jax_batch)
+        (loss, logits), grads = grad_fn(model, {"input_ids": input_ids, "attention_mask": attention_mask, "target_ids": target_ids})
 
         # Accumulate gradients
         if self.accumulated_grads[model_id] is None:
