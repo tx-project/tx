@@ -2,7 +2,6 @@ from fastapi import FastAPI, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Literal, Any, AsyncGenerator
 from uuid import uuid4
-from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession

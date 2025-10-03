@@ -100,13 +100,7 @@ class TinkerEngine:
         if self.accumulated_grads[model_id] is None:
             self.accumulated_grads[model_id] = grads
         else:
-            # Add to accumulated gradients
-            accumulated = self.accumulated_grads[model_id]
-            for path in nnx.to_flat_state(grads):
-                acc_state = nnx.to_flat_state(accumulated)
-                grad_state = nnx.to_flat_state(grads)
-                # Simple accumulation - in practice you'd iterate through the state tree
-                self.accumulated_grads[model_id] = grads  # For now, just replace
+            raise NotImplementedError("Gradient accumulation not yet implemented")
 
         # Return loss in the expected format
         loss_value = float(loss)
