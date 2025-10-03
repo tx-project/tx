@@ -10,9 +10,10 @@ import jax.numpy as jnp
 from flax import nnx
 import optax
 from transformers import AutoConfig
+from huggingface_hub import snapshot_download
 
 from tx.tinker.models import FutureDB, ModelDB, DB_PATH, RequestType, RequestStatus
-from tx.utils.models import get_dtype, get_model_class, save_checkpoint
+from tx.utils.models import get_dtype, get_model_class, save_checkpoint, load_checkpoint
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +44,17 @@ class TinkerEngine:
         config = AutoConfig.from_pretrained(base_model)
         model_class = get_model_class(config)
 
-        # Create model with JAX mesh for tensor parallelism (default to single device)
+        # Download model weights from HuggingFace
+        checkpoint_path = snapshot_download(base_model, allow_patterns=["*.safetensors"])
+
+        # Create model and load weights
         mesh = jax.make_mesh((1, 1), ("dp", "tp"))
         with jax.set_mesh(mesh):
             model = model_class(config, dtype=get_dtype(config.dtype), rngs=nnx.Rngs(0))
             # Initialize optimizer with default Adam settings
             # (TODO: This might not actually be super great, it is worth thinking about how to do that better)
             optimizer = nnx.Optimizer(model, optax.adamw(1e-4), wrt=nnx.Param)
+        load_checkpoint(checkpoint_path, config, model)
 
         self.models[model_id] = {
             "model": model,
