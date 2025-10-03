@@ -269,7 +269,7 @@ async def optim_step(request: OptimStepRequest, session: AsyncSession = Depends(
 async def get_server_capabilities():
     """Retrieve information about supported models and server capabilities."""
     supported_models = [
-        SupportedModel(model_name="Qwen/Qwen3-8B"),
+        SupportedModel(model_name="Qwen/Qwen3-0.6B"),
     ]
     return GetServerCapabilitiesResponse(supported_models=supported_models)
 
