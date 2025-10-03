@@ -11,23 +11,9 @@ import optax
 from transformers import AutoConfig
 
 from tx.tinker.models import FutureDB, ModelDB, DB_PATH, RequestType, RequestStatus
-from tx.utils.models import get_dtype, get_model_class, get_optimizer, OptimizerName
+from tx.utils.models import get_dtype, get_model_class
 
 logger = logging.getLogger(__name__)
-
-
-def convert_tensor_to_list(tensor_data):
-    """Convert tensor data from dict format to list.
-
-    Args:
-        tensor_data: Either a list or a dict with 'data' and optional 'shape' keys
-
-    Returns:
-        list: The tensor data as a flat list
-    """
-    if isinstance(tensor_data, dict) and "data" in tensor_data:
-        return tensor_data["data"]
-    return list(tensor_data)
 
 
 def loss_fn(model, batch):
@@ -92,7 +78,7 @@ class TinkerEngine:
         for item in data:
             tokens = [t for chunk in item["model_input"]["chunks"] for t in chunk["tokens"]]
             input_ids_list.append(tokens)
-            target_tokens = convert_tensor_to_list(item["loss_fn_inputs"]["target_tokens"])
+            target_tokens = item["loss_fn_inputs"]["target_tokens"]["data"]
             target_list.append(target_tokens)
 
         # Pad sequences to same length
