@@ -11,7 +11,7 @@ import asyncio
 import subprocess
 import logging
 
-from tx.tinker.models import ModelDB, FutureDB, DB_PATH, RequestType
+from tx.tinker.models import ModelDB, FutureDB, DB_PATH, RequestType, RequestStatus
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -165,7 +165,7 @@ async def create_model(request: CreateModelRequest, session: AsyncSession = Depe
             "status": "created",
             "request_id": request_id
         },
-        status="completed",
+        status=RequestStatus.COMPLETED,
         completed_at=datetime.now(timezone.utc)
     )
     session.add(future_db)
@@ -231,7 +231,7 @@ async def forward_backward(request: ForwardBackwardInput, session: AsyncSession 
         model_id=request.model_id,
         request_data=request.model_dump(),
         result_data=None,  # Will be filled by background worker
-        status="pending"
+        status=RequestStatus.PENDING
     )
     session.add(future_db)
     await session.commit()
@@ -257,7 +257,7 @@ async def optim_step(request: OptimStepRequest, session: AsyncSession = Depends(
         model_id=request.model_id,
         request_data=request.model_dump(),
         result_data=None,  # Will be filled by background worker
-        status="pending"
+        status=RequestStatus.PENDING
     )
     session.add(future_db)
     await session.commit()
@@ -293,10 +293,10 @@ async def retrieve_future(request: RetrieveFutureRequest, req: Request):
             if not future:
                 raise HTTPException(status_code=404, detail="Future not found")
 
-            if future.status == "completed":
+            if future.status == RequestStatus.COMPLETED:
                 return future.result_data
 
-            if future.status == "failed":
+            if future.status == RequestStatus.FAILED:
                 error = future.result_data.get("error", "Unknown error") if future.result_data else "Unknown error"
                 raise HTTPException(status_code=500, detail=error)
 

@@ -15,6 +15,13 @@ class RequestType(str, Enum):
     OPTIM_STEP = "optim_step"
 
 
+class RequestStatus(str, Enum):
+    """Status of a request."""
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 # SQLModel table definitions
 class ModelDB(SQLModel, table=True):
     __tablename__ = "models"
@@ -35,6 +42,6 @@ class FutureDB(SQLModel, table=True):
     model_id: str | None = None
     request_data: dict = Field(sa_type=JSON)
     result_data: dict | None = Field(default=None, sa_type=JSON)
-    status: str = Field(default="pending", index=True)  # "pending", "completed", "failed"
+    status: RequestStatus = Field(default=RequestStatus.PENDING, index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = None

@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from sqlmodel import create_engine, Session, select
 
-from tx.tinker.models import FutureDB, DB_PATH, RequestType
+from tx.tinker.models import FutureDB, DB_PATH, RequestType, RequestStatus
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class TinkerEngine:
         while True:
             with Session(self.db_engine) as session:
                 # Get all pending requests
-                statement = select(FutureDB).where(FutureDB.status == "pending")
+                statement = select(FutureDB).where(FutureDB.status == RequestStatus.PENDING)
                 pending = session.exec(statement).all()
 
                 for future in pending:
@@ -66,7 +66,7 @@ class TinkerEngine:
 
                         # Update the future with results
                         future.result_data = result_data
-                        future.status = "completed"
+                        future.status = RequestStatus.COMPLETED
                         future.completed_at = datetime.now(timezone.utc)
                         session.add(future)
                         session.commit()
@@ -76,7 +76,7 @@ class TinkerEngine:
                     except Exception as e:
                         logger.error(f"Error processing request {future.request_id}: {e}")
                         future.result_data = {"error": str(e)}
-                        future.status = "failed"
+                        future.status = RequestStatus.FAILED
                         future.completed_at = datetime.now(timezone.utc)
                         session.add(future)
                         session.commit()
