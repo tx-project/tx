@@ -2,6 +2,7 @@
 import time
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from sqlmodel import create_engine, Session, select
 
 import jax
@@ -11,9 +12,12 @@ import optax
 from transformers import AutoConfig
 
 from tx.tinker.models import FutureDB, ModelDB, DB_PATH, RequestType, RequestStatus
-from tx.utils.models import get_dtype, get_model_class
+from tx.utils.models import get_dtype, get_model_class, save_checkpoint
 
 logger = logging.getLogger(__name__)
+
+# Base path for saving checkpoints
+CHECKPOINTS_BASE_PATH = Path("/tmp/tx_checkpoints")
 
 
 def loss_fn(model, batch):
@@ -142,6 +146,36 @@ class TinkerEngine:
         logger.info(f"Applied optimizer step for model {model_id}")
         return {}
 
+    def process_save_weights_for_sampler(self, request_id: str, model_id: str, request_data: dict) -> dict:
+        """Process a save_weights_for_sampler request and save model weights."""
+        if model_id not in self.models:
+            raise ValueError(f"Model {model_id} not loaded")
+
+        model_info = self.models[model_id]
+        model = model_info["model"]
+        config = model_info["config"]
+
+        # Get the optional checkpoint_id from request path
+        checkpoint_id = request_data.get("path")
+        if not checkpoint_id:
+            # Generate a default checkpoint ID based on timestamp
+            checkpoint_id = f"checkpoint_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+
+        # Create the output directory: CHECKPOINTS_BASE_PATH/{model_id}/{checkpoint_id}
+        output_dir = CHECKPOINTS_BASE_PATH / model_id / checkpoint_id
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save the model weights and config to disk
+        save_checkpoint(config, model, output_dir / "model.safetensors")
+        config.save_pretrained(output_dir)
+        logger.info(f"Saved weights for sampler for model {model_id} to {output_dir}")
+
+        # Return a tinker URI
+        return {
+            "path": f"tinker://{model_id}/{checkpoint_id}",
+            "type": "save_weights_for_sampler"
+        }
+
     def process_pending_requests(self):
         """Main loop to process pending requests."""
         while True:
@@ -175,6 +209,12 @@ class TinkerEngine:
                             )
                         elif future.request_type == RequestType.OPTIM_STEP:
                             result_data = self.process_optim_step(
+                                future.request_id,
+                                future.model_id,
+                                future.request_data
+                            )
+                        elif future.request_type == RequestType.SAVE_WEIGHTS_FOR_SAMPLER:
+                            result_data = self.process_save_weights_for_sampler(
                                 future.request_id,
                                 future.model_id,
                                 future.request_data

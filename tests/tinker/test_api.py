@@ -86,3 +86,7 @@ def test_training_workflow(service_client):
     assert optim_result is not None
     assert fwdbwd_result.loss_fn_output_type == "scalar"
     assert len(fwdbwd_result.loss_fn_outputs) > 0
+
+    # Get a checkpoint
+    sampling_path = training_client.save_weights_for_sampler(name="0000").result().path
+    assert sampling_path is not None
