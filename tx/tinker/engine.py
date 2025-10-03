@@ -56,14 +56,9 @@ class TinkerEngine:
 
     def process_forward_backward(self, request_id: str, model_id: str, request_data: dict) -> dict:
         """Process a forward_backward request and return real loss and gradients."""
-        # Load model if not already loaded
+        # Check if model is loaded
         if model_id not in self.models:
-            with Session(self.db_engine) as session:
-                statement = select(ModelDB).where(ModelDB.model_id == model_id)
-                model_db = session.exec(statement).first()
-                if not model_db:
-                    raise ValueError(f"Model {model_id} not found in database")
-                self.create_model(model_id, model_db.base_model, model_db.lora_config)
+            raise ValueError(f"Model {model_id} not loaded")
 
         model_info = self.models[model_id]
         model = model_info["model"]
@@ -171,7 +166,21 @@ class TinkerEngine:
                 for future in pending:
                     try:
                         # Process based on request type
-                        if future.request_type == RequestType.FORWARD_BACKWARD:
+                        if future.request_type == RequestType.CREATE_MODEL:
+                            # Get model from database and create it
+                            model_statement = select(ModelDB).where(ModelDB.model_id == future.model_id)
+                            model_db = session.exec(model_statement).first()
+                            if not model_db:
+                                raise ValueError(f"Model {future.model_id} not found in database")
+                            self.create_model(future.model_id, model_db.base_model, model_db.lora_config)
+                            result_data = {
+                                "model_id": future.model_id,
+                                "base_model": model_db.base_model,
+                                "lora_config": model_db.lora_config,
+                                "status": "created",
+                                "request_id": future.request_id
+                            }
+                        elif future.request_type == RequestType.FORWARD_BACKWARD:
                             result_data = self.process_forward_backward(
                                 future.request_id,
                                 future.model_id,

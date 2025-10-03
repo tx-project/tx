@@ -158,15 +158,8 @@ async def create_model(request: CreateModelRequest, session: AsyncSession = Depe
         request_type=RequestType.CREATE_MODEL,
         model_id=model_id,
         request_data=request.model_dump(),
-        result_data={
-            "model_id": model_id,
-            "base_model": request.base_model,
-            "lora_config": request.lora_config.model_dump() if request.lora_config else None,
-            "status": "created",
-            "request_id": request_id
-        },
-        status=RequestStatus.COMPLETED,
-        completed_at=datetime.now(timezone.utc)
+        result_data=None,  # Will be filled by background worker
+        status=RequestStatus.PENDING
     )
     session.add(future_db)
 
