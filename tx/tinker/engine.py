@@ -44,6 +44,7 @@ class TinkerEngine:
         with jax.set_mesh(mesh):
             model = model_class(config, dtype=get_dtype(config.dtype), rngs=nnx.Rngs(0))
             # Initialize optimizer with default Adam settings
+            # (TODO: This might not actually be super great, it is worth thinking about how to do that better)
             optimizer = nnx.Optimizer(model, optax.adamw(1e-4), wrt=nnx.Param)
 
         self.models[model_id] = {
