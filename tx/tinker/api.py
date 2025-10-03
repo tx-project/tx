@@ -11,7 +11,7 @@ import asyncio
 import subprocess
 import logging
 
-from tx.tinker.models import ModelDB, FutureDB, DB_PATH
+from tx.tinker.models import ModelDB, FutureDB, DB_PATH, RequestType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -155,7 +155,7 @@ async def create_model(request: CreateModelRequest, session: AsyncSession = Depe
 
     future_db = FutureDB(
         request_id=request_id,
-        request_type="create_model",
+        request_type=RequestType.CREATE_MODEL,
         model_id=model_id,
         request_data=request.model_dump(),
         result_data={
@@ -227,7 +227,7 @@ async def forward_backward(request: ForwardBackwardInput, session: AsyncSession 
 
     future_db = FutureDB(
         request_id=request_id,
-        request_type="forward_backward",
+        request_type=RequestType.FORWARD_BACKWARD,
         model_id=request.model_id,
         request_data=request.model_dump(),
         result_data=None,  # Will be filled by background worker
@@ -253,7 +253,7 @@ async def optim_step(request: OptimStepRequest, session: AsyncSession = Depends(
 
     future_db = FutureDB(
         request_id=request_id,
-        request_type="optim_step",
+        request_type=RequestType.OPTIM_STEP,
         model_id=request.model_id,
         request_data=request.model_dump(),
         result_data=None,  # Will be filled by background worker

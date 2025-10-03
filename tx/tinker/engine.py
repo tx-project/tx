@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from sqlmodel import create_engine, Session, select
 
-from tx.tinker.models import FutureDB, DB_PATH
+from tx.tinker.models import FutureDB, DB_PATH, RequestType
 
 logger = logging.getLogger(__name__)
 
@@ -48,13 +48,13 @@ class TinkerEngine:
                 for future in pending:
                     try:
                         # Process based on request type
-                        if future.request_type == "forward_backward":
+                        if future.request_type == RequestType.FORWARD_BACKWARD:
                             result_data = self.process_forward_backward(
                                 future.request_id,
                                 future.model_id,
                                 future.request_data
                             )
-                        elif future.request_type == "optim_step":
+                        elif future.request_type == RequestType.OPTIM_STEP:
                             result_data = self.process_optim_step(
                                 future.request_id,
                                 future.model_id,
