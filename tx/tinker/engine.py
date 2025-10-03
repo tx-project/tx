@@ -66,14 +66,12 @@ class TinkerEngine:
 
     def process_forward_backward(self, request_id: str, model_id: str, request_data: dict) -> dict:
         """Process a forward_backward request and return real loss and gradients."""
-        # Check if model is loaded
         if model_id not in self.models:
             raise ValueError(f"Model {model_id} not loaded")
 
         model_info = self.models[model_id]
         model = model_info["model"]
 
-        # Extract batch data from request
         forward_backward_input = request_data.get("forward_backward_input", {})
 
         # Extract tokens from examples
@@ -160,7 +158,6 @@ class TinkerEngine:
         model = model_info["model"]
         config = model_info["config"]
 
-        # Get the optional checkpoint_id from request path
         checkpoint_id = request_data.get("path")
         if not checkpoint_id:
             checkpoint_id = f"checkpoint_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
@@ -168,7 +165,6 @@ class TinkerEngine:
             # Make sure the user cannot store checkpoints in places like ../../<important file>
             checkpoint_id = Path(checkpoint_id).name
 
-        # Create the output directory: CHECKPOINTS_BASE_PATH/{model_id}/{checkpoint_id}
         output_dir = CHECKPOINTS_BASE_PATH / model_id / checkpoint_id
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -177,7 +173,6 @@ class TinkerEngine:
         config.save_pretrained(output_dir)
         logger.info(f"Saved weights for sampler for model {model_id} to {output_dir}")
 
-        # Return a tinker URI
         return {
             "path": f"tinker://{model_id}/{checkpoint_id}",
             "type": "save_weights_for_sampler"
