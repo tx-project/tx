@@ -88,31 +88,26 @@ class Qwen3MLP(nnx.Module):
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         lora_rank = getattr(config, 'lora_rank', None)
 
-        gate_proj = nnx.Linear(
+        self.gate_proj = nnx.Linear(
             config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype,
             kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")), rngs=rngs
         )
-        up_proj = nnx.Linear(
+        self.up_proj = nnx.Linear(
             config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype,
             kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")), rngs=rngs
         )
-        down_proj = nnx.Linear(
+        self.down_proj = nnx.Linear(
             config.intermediate_size, config.hidden_size, use_bias=False, dtype=dtype, param_dtype=dtype,
             kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P("tp", None)), rngs=rngs
         )
 
-        # Wrap with LoRA if configured
         if lora_rank is not None:
             self.gate_proj = nnx.LoRA(config.hidden_size, lora_rank, config.intermediate_size,
-                                      base_module=gate_proj, dtype=dtype, rngs=rngs)
+                                      base_module=self.gate_proj, dtype=dtype, rngs=rngs)
             self.up_proj = nnx.LoRA(config.hidden_size, lora_rank, config.intermediate_size,
-                                    base_module=up_proj, dtype=dtype, rngs=rngs)
+                                    base_module=self.up_proj, dtype=dtype, rngs=rngs)
             self.down_proj = nnx.LoRA(config.intermediate_size, lora_rank, config.hidden_size,
-                                      base_module=down_proj, dtype=dtype, rngs=rngs)
-        else:
-            self.gate_proj = gate_proj
-            self.up_proj = up_proj
-            self.down_proj = down_proj
+                                      base_module=self.down_proj, dtype=dtype, rngs=rngs)
 
     def __call__(self, x: jax.Array) -> jax.Array:
         return self.down_proj(nnx.silu(self.gate_proj(x)) * self.up_proj(x))
