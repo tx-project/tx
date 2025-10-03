@@ -69,3 +69,44 @@ def test_qwen3_moe_layer():
 
     assert np.allclose(hf_router_logits, router_logits, rtol=1e-4)
     assert np.allclose(hf_final_hidden_states, final_hidden_states, rtol=1e-2, atol=1e-2)
+
+
+def test_qwen3_lora():
+    """Test LoRA implementation by comparing with HuggingFace PEFT model."""
+    from peft import PeftModel
+    from tx.utils.lora import create_lora_shadow_model
+
+    base_model_name = "Qwen/Qwen3-0.6B"
+    lora_adapter = "charent/self_cognition_Alice"
+
+    tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+    base_hf_model = AutoModelForCausalLM.from_pretrained(base_model_name, attn_implementation="eager", use_safetensors=True)
+    hf_model = PeftModel.from_pretrained(base_hf_model, lora_adapter)
+    hf_model = hf_model.merge_and_unload()
+
+    inputs = ["The capital of France is"]
+    batch = tokenizer(inputs, return_tensors="pt", padding=True)
+    with torch.no_grad():
+        hf_outputs = hf_model(batch.input_ids, attention_mask=batch.attention_mask, output_hidden_states=True, return_dict=True)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        hf_model.save_pretrained(tmp, safe_serialization=True)
+
+        config = AutoConfig.from_pretrained(base_model_name)
+
+        mesh = jax.make_mesh((1, 1), ("dp", "tp"))
+        with jax.set_mesh(mesh):
+            # Create base model without LoRA
+            base_model = Qwen3ForCausalLM(config, dtype=jnp.float32, rngs=nnx.Rngs(0))
+            load_checkpoint(tmp, config, base_model)
+            # Create shadow model with LoRA adapters on MLP layers only
+            model = create_lora_shadow_model(
+                base_model,
+                lora_rank=8,
+                target_modules=["mlp.gate_proj", "mlp.up_proj", "mlp.down_proj"],
+                dtype=jnp.float32,
+                rngs=nnx.Rngs(1)
+            )
+
+        outputs = model(batch.input_ids.numpy(), attention_mask=batch.attention_mask.numpy(), output_hidden_states=True)
+        assert np.allclose(hf_outputs.logits, outputs["logits"], rtol=1e-3, atol=1e-3)

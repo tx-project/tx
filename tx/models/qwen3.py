@@ -86,8 +86,6 @@ class Qwen3Attention(nnx.Module):
 class Qwen3MLP(nnx.Module):
 
     def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
-        lora_rank = getattr(config, 'lora_rank', None)
-
         self.gate_proj = nnx.Linear(
             config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype,
             kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")), rngs=rngs
@@ -100,14 +98,6 @@ class Qwen3MLP(nnx.Module):
             config.intermediate_size, config.hidden_size, use_bias=False, dtype=dtype, param_dtype=dtype,
             kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P("tp", None)), rngs=rngs
         )
-
-        if lora_rank is not None:
-            self.gate_proj = nnx.LoRA(config.hidden_size, lora_rank, config.intermediate_size,
-                                      base_module=self.gate_proj, dtype=dtype, rngs=rngs)
-            self.up_proj = nnx.LoRA(config.hidden_size, lora_rank, config.intermediate_size,
-                                    base_module=self.up_proj, dtype=dtype, rngs=rngs)
-            self.down_proj = nnx.LoRA(config.intermediate_size, lora_rank, config.hidden_size,
-                                      base_module=self.down_proj, dtype=dtype, rngs=rngs)
 
     def __call__(self, x: jax.Array) -> jax.Array:
         return self.down_proj(nnx.silu(self.gate_proj(x)) * self.up_proj(x))
