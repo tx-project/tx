@@ -163,8 +163,10 @@ class TinkerEngine:
         # Get the optional checkpoint_id from request path
         checkpoint_id = request_data.get("path")
         if not checkpoint_id:
-            # Generate a default checkpoint ID based on timestamp
             checkpoint_id = f"checkpoint_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        else:
+            # Make sure the user cannot store checkpoints in places like ../../<important file>
+            checkpoint_id = Path(checkpoint_id).name
 
         # Create the output directory: CHECKPOINTS_BASE_PATH/{model_id}/{checkpoint_id}
         output_dir = CHECKPOINTS_BASE_PATH / model_id / checkpoint_id
