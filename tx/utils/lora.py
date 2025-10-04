@@ -56,37 +56,34 @@ def create_lora_shadow_model(base_model: nnx.Module, lora_rank: int, lora_alpha:
             return True
         return any(target in path for target in target_modules)
 
-    def wrap_with_lora(module, path=""):
-        if isinstance(module, nnx.Linear) and should_wrap(path):
-            # Create a LoRA wrapper with proper scaling
-            return ScaledLoRA(
-                module.in_features,
-                lora_rank,
-                module.out_features,
-                lora_alpha=lora_alpha,
-                base_module=module,
-                dtype=dtype,
-                rngs=rngs
-            )
-        elif isinstance(module, nnx.List):
-            # Handle nnx.List specially (e.g., model.layers)
-            for i, item in enumerate(module):
-                new_path = f"{path}[{i}]" if path else f"[{i}]"
-                wrap_with_lora(item, new_path)
-        elif isinstance(module, nnx.Module):
-            # Recursively process submodules
-            for name in dir(module):
-                if name.startswith('_'):
-                    continue
-                attr = getattr(module, name, None)
-                if attr is None:
-                    continue
-                if isinstance(attr, (nnx.Linear, nnx.List, nnx.Module)):
-                    new_path = f"{path}.{name}" if path else name
-                    wrapped = wrap_with_lora(attr, new_path)
-                    if wrapped is not attr:
+    def wrap_with_lora(module: nnx.Module, path: str = "") -> nnx.Module:
+        match module:
+            case nnx.Linear() if should_wrap(path):
+                return ScaledLoRA(
+                    module.in_features,
+                    lora_rank,
+                    module.out_features,
+                    lora_alpha=lora_alpha,
+                    base_module=module,
+                    dtype=dtype,
+                    rngs=rngs
+                )
+            case nnx.List():
+                for i, item in enumerate(module):
+                    new_path = f"{path}[{i}]" if path else f"[{i}]"
+                    wrap_with_lora(item, new_path)
+                return module
+            case nnx.Module():
+                for name in dir(module):
+                    if name.startswith('_'):
+                        continue
+                    attr = getattr(module, name, None)
+                    if isinstance(attr, (nnx.Linear, nnx.List, nnx.Module)):
+                        new_path = f"{path}.{name}" if path else name
+                        wrapped = wrap_with_lora(attr, new_path)
                         setattr(module, name, wrapped)
-        return module
+                return module
+            case _:
+                return module
 
-    wrap_with_lora(shadow_model)
-    return shadow_model
+    return wrap_with_lora(shadow_model)
