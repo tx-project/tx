@@ -8,7 +8,12 @@ def Param(*shape: int, dtype: jnp.dtype, kernel_init: nnx.Initializer, rngs: nnx
 
 
 class LoRAMixin:
-    """Mixin that creates and applies multi-adapter LoRA weights."""
+    """A mixin for flax NNX modules to add multi-adapter LoRA support.
+
+    This mixin adds LoRA parameters (lora_A, lora_B) and methods to apply
+    the low-rank adaptation to a base module's output. It is designed to
+    be used with layers like nnx.Linear.
+    """
 
     def init_lora(
         self,
@@ -68,7 +73,7 @@ class LoRAMixin:
 
 
 class LoRALinear(LoRAMixin, nnx.Linear):
-    """MultiLoRA version of nnx.Linear."""
+    """An nnx.Linear layer with multi-adapter LoRA support."""
 
     def __init__(
         self,
