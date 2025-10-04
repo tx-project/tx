@@ -129,6 +129,7 @@ def test_qwen3_lora():
                 dtype=jnp.float32,
                 rngs=nnx.Rngs(1)
             )
+            assert isinstance(model, Qwen3ForCausalLM)
 
             # Get outputs from LoRA model for comparison
             with torch.no_grad():
