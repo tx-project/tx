@@ -5,6 +5,20 @@ from transformers import Qwen3Config
 
 from tx.layers.lora import LoRALinear
 
+
+class Qwen3ConfigWithLoRA(Qwen3Config):
+    """Extends Qwen3Config to include LoRA parameters."""
+
+    def __init__(
+        self,
+        max_lora_adapters: int = 0,
+        max_lora_rank: int = 8,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.max_lora_adapters = max_lora_adapters
+        self.max_lora_rank = max_lora_rank
+
 def Param(*shape: int, dtype: jnp.dtype, kernel_init: nnx.Initializer, rngs: nnx.Rngs):
     return nnx.Param(kernel_init(rngs.param(), shape, dtype))
 
@@ -88,13 +102,14 @@ class Qwen3MLP(nnx.Module):
 
     def __init__(
         self,
-        config: Qwen3Config,
+        config: Qwen3Config | Qwen3ConfigWithLoRA,
         *,
         dtype: jnp.dtype,
         rngs: nnx.Rngs,
-        max_lora_adapters: int = 0,
-        max_lora_rank: int = 8,
     ) -> None:
+        max_lora_adapters = getattr(config, 'max_lora_adapters', 0)
+        max_lora_rank = getattr(config, 'max_lora_rank', 8)
+
         self.gate_proj = LoRALinear(
             config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype,
             kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")),
@@ -195,12 +210,10 @@ class Qwen3DecoderLayer(nnx.Module):
 
     def __init__(
         self,
-        config: Qwen3Config,
+        config: Qwen3Config | Qwen3ConfigWithLoRA,
         *,
         dtype: jnp.dtype,
         rngs: nnx.Rngs,
-        max_lora_adapters: int = 0,
-        max_lora_rank: int = 8,
     ) -> None:
         self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
         self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
@@ -208,13 +221,7 @@ class Qwen3DecoderLayer(nnx.Module):
         if getattr(config, "num_experts", None):
             self.mlp = Qwen3MoeSparseMoeBlock(config, dtype=dtype, rngs=rngs)
         else:
-            self.mlp = Qwen3MLP(
-                config,
-                dtype=dtype,
-                rngs=rngs,
-                max_lora_adapters=max_lora_adapters,
-                max_lora_rank=max_lora_rank,
-            )
+            self.mlp = Qwen3MLP(config, dtype=dtype, rngs=rngs)
 
     def __call__(
         self,
@@ -246,12 +253,10 @@ class Qwen3Model(nnx.Module):
 
     def __init__(
         self,
-        config: Qwen3Config,
+        config: Qwen3Config | Qwen3ConfigWithLoRA,
         *,
         dtype: jnp.dtype,
         rngs: nnx.Rngs,
-        max_lora_adapters: int = 0,
-        max_lora_rank: int = 8,
     ) -> None:
         self.config = config
         self.embed_tokens = nnx.Embed(
@@ -263,13 +268,7 @@ class Qwen3Model(nnx.Module):
             rngs=rngs,
         )
         self.layers = nnx.List([
-            Qwen3DecoderLayer(
-                config,
-                dtype=dtype,
-                rngs=rngs,
-                max_lora_adapters=max_lora_adapters,
-                max_lora_rank=max_lora_rank,
-            )
+            Qwen3DecoderLayer(config, dtype=dtype, rngs=rngs)
             for _ in range(config.num_hidden_layers)
         ])
         self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
@@ -316,21 +315,13 @@ class Qwen3ForCausalLM(nnx.Module):
 
     def __init__(
         self,
-        config: Qwen3Config,
+        config: Qwen3Config | Qwen3ConfigWithLoRA,
         *,
         dtype: jnp.dtype,
         rngs: nnx.Rngs,
-        max_lora_adapters: int = 0,
-        max_lora_rank: int = 8,
     ) -> None:
         self.config = config
-        self.model = Qwen3Model(
-            config,
-            dtype=dtype,
-            rngs=rngs,
-            max_lora_adapters=max_lora_adapters,
-            max_lora_rank=max_lora_rank,
-        )
+        self.model = Qwen3Model(config, dtype=dtype, rngs=rngs)
         if not self.config.tie_word_embeddings:
             self.lm_head = nnx.Linear(
                 config.hidden_size, config.vocab_size, use_bias=False, dtype=dtype, param_dtype=dtype,
