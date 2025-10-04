@@ -10,7 +10,7 @@ import pytest
 import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
-from tx.models import Qwen3ConfigWithLoRA, Qwen3ForCausalLM
+from tx.models import Qwen3ForCausalLM
 from tx.models.qwen3 import Qwen3MoeSparseMoeBlock
 from tx.utils.models import load_checkpoint
 
@@ -86,7 +86,7 @@ def test_qwen3_lora():
         base_hf_model = AutoModelForCausalLM.from_pretrained(base_model_name, attn_implementation="eager", use_safetensors=True)
         base_hf_model.save_pretrained(base_tmp, safe_serialization=True)
 
-        base_config = AutoConfig.from_pretrained(base_model_name)
+        config = AutoConfig.from_pretrained(base_model_name)
 
         # Get the original config but override target_modules to only MLP
         original_lora_config = LoraConfig.from_pretrained(lora_adapter)
@@ -109,12 +109,8 @@ def test_qwen3_lora():
         hf_lora_model.load_adapter(lora_adapter, adapter_name='default')
         lora_config = mlp_only_config
 
-        # Create config with LoRA parameters
-        config = Qwen3ConfigWithLoRA(
-            **base_config.to_dict(),
-            max_lora_adapters=1,
-            max_lora_rank=lora_config.r,
-        )
+        config.max_lora_adapters = 1
+        config.max_lora_rank = lora_config.r
 
         mesh = jax.make_mesh((1, 1), ("dp", "tp"))
         with jax.set_mesh(mesh):

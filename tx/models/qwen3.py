@@ -6,19 +6,6 @@ from transformers import Qwen3Config
 from tx.layers.lora import LoRALinear
 
 
-class Qwen3ConfigWithLoRA(Qwen3Config):
-    """Extends Qwen3Config to include LoRA parameters."""
-
-    def __init__(
-        self,
-        max_lora_adapters: int = 0,
-        max_lora_rank: int = 8,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-        self.max_lora_adapters = max_lora_adapters
-        self.max_lora_rank = max_lora_rank
-
 def Param(*shape: int, dtype: jnp.dtype, kernel_init: nnx.Initializer, rngs: nnx.Rngs):
     return nnx.Param(kernel_init(rngs.param(), shape, dtype))
 
