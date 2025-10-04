@@ -96,63 +96,38 @@ def test_qwen3_lora():
     batch = tokenizer(inputs, return_tensors="pt", padding=True)
 
     with tempfile.TemporaryDirectory() as base_tmp:
-        # Load and save base model
         base_hf_model = AutoModelForCausalLM.from_pretrained(base_model_name, attn_implementation="eager", use_safetensors=True)
         base_hf_model.save_pretrained(base_tmp, safe_serialization=True)
 
         config = AutoConfig.from_pretrained(base_model_name)
-
-        # Get the original config but override target_modules to only MLP
-        original_lora_config = LoraConfig.from_pretrained(lora_adapter)
-
-        # Create a new config with only MLP target modules for testing
-        mlp_only_config = LoraConfig(
-            r=original_lora_config.r,
-            lora_alpha=original_lora_config.lora_alpha,
-            target_modules=['gate_proj', 'up_proj', 'down_proj'],
-            lora_dropout=original_lora_config.lora_dropout,
-            bias=original_lora_config.bias,
-            task_type=original_lora_config.task_type,
-        )
-
-        # Apply this config to create a new PEFT model with MLP-only LoRA
-        hf_lora_model = get_peft_model(base_hf_model, mlp_only_config)
+        lora_config = LoraConfig.from_pretrained(lora_adapter)
+        lora_config.target_modules = ['gate_proj', 'up_proj', 'down_proj']
+        hf_lora_model = get_peft_model(base_hf_model, lora_config)
         hf_lora_model.eval()
 
         # Load the adapter weights from the original adapter
         hf_lora_model.load_adapter(lora_adapter, adapter_name='default')
-        lora_config = mlp_only_config
 
         config.max_lora_adapters = 1
         config.max_lora_rank = lora_config.r
 
         mesh = jax.make_mesh((1, 1), ("dp", "tp"))
         with jax.set_mesh(mesh):
-            # Create model with LoRA adapters on MLP layers
-            model = Qwen3ForCausalLM(
-                config,
-                dtype=jnp.float32,
-                rngs=nnx.Rngs(0),
-            )
-            # Load base weights
+            model = Qwen3ForCausalLM(config,dtype=jnp.float32, rngs=nnx.Rngs(0))
             load_checkpoint(base_tmp, config, model)
 
-            # Get outputs from LoRA model for comparison
-            with torch.no_grad():
-                hf_outputs = hf_lora_model(batch.input_ids, attention_mask=batch.attention_mask, output_hidden_states=True, return_dict=True)
+        with torch.no_grad():
+            hf_outputs = hf_lora_model(batch.input_ids, attention_mask=batch.attention_mask, output_hidden_states=True, return_dict=True)
 
-            # Calculate scaling factor for the adapter (alpha / rank)
-            lora_scaling = lora_config.lora_alpha / lora_config.r
-
-            # Load LoRA adapter weights from the PEFT model
-            for i, layer in enumerate(model.model.layers):
-                if hasattr(layer.mlp, 'gate_proj') and hasattr(layer.mlp.gate_proj, 'lora_A'):
-                    hf_layer = hf_lora_model.base_model.model.model.layers[i].mlp
-                    for proj_name in ['gate_proj', 'up_proj', 'down_proj']:
-                        load_lora_weights(
-                            getattr(layer.mlp, proj_name), getattr(hf_layer, proj_name),
-                            adapter_idx=0, scaling=lora_scaling
-                        )
+        # Load LoRA adapter weights from the PEFT model
+        for i, layer in enumerate(model.model.layers):
+            if hasattr(layer.mlp, 'gate_proj') and hasattr(layer.mlp.gate_proj, 'lora_A'):
+                hf_layer = hf_lora_model.base_model.model.model.layers[i].mlp
+                for proj_name in ['gate_proj', 'up_proj', 'down_proj']:
+                    load_lora_weights(
+                        getattr(layer.mlp, proj_name), getattr(hf_layer, proj_name),
+                        adapter_idx=0, scaling=lora_config.lora_alpha / lora_config.r
+                    )
 
         # Use adapter index 0 for inference
         adapter_indices = jnp.zeros(batch.input_ids.shape[0], dtype=jnp.int32)
