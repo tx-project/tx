@@ -96,42 +96,20 @@ class Qwen3MLP(nnx.Module):
         lora_rank: int = 8,
         lora_alpha: float = 16.0,
     ) -> None:
-        init_hidden_tp = nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp"))
         self.gate_proj = LoRALinear(
-            config.hidden_size,
-            config.intermediate_size,
-            num_adapters=num_adapters,
-            rank=lora_rank,
-            alpha=lora_alpha,
-            use_bias=False,
-            dtype=dtype,
-            param_dtype=dtype,
-            kernel_init=init_hidden_tp,
-            rngs=rngs,
+            config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype,
+            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")),
+            num_adapters=num_adapters, rank=lora_rank, alpha=lora_alpha, rngs=rngs,
         )
         self.up_proj = LoRALinear(
-            config.hidden_size,
-            config.intermediate_size,
-            num_adapters=num_adapters,
-            rank=lora_rank,
-            alpha=lora_alpha,
-            use_bias=False,
-            dtype=dtype,
-            param_dtype=dtype,
-            kernel_init=init_hidden_tp,
-            rngs=rngs,
+            config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype,
+            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")),
+            num_adapters=num_adapters, rank=lora_rank, alpha=lora_alpha, rngs=rngs,
         )
         self.down_proj = LoRALinear(
-            config.intermediate_size,
-            config.hidden_size,
-            num_adapters=num_adapters,
-            rank=lora_rank,
-            alpha=lora_alpha,
-            use_bias=False,
-            dtype=dtype,
-            param_dtype=dtype,
+            config.intermediate_size, config.hidden_size, use_bias=False, dtype=dtype, param_dtype=dtype,
             kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P("tp", None)),
-            rngs=rngs,
+            num_adapters=num_adapters, rank=lora_rank, alpha=lora_alpha, rngs=rngs,
         )
 
     def __call__(self, x: jax.Array, adapter_indices: jax.Array | None = None) -> jax.Array:
