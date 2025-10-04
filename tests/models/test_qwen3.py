@@ -86,10 +86,9 @@ def test_qwen3_lora():
     inputs = ["The capital of France is"]
     batch = tokenizer(inputs, return_tensors="pt", padding=True)
 
-    # Get outputs from merged model for comparison
-    hf_merged_model = hf_lora_model.merge_and_unload()
+    # Get outputs from LoRA model for comparison
     with torch.no_grad():
-        hf_outputs = hf_merged_model(batch.input_ids, attention_mask=batch.attention_mask, output_hidden_states=True, return_dict=True)
+        hf_outputs = hf_lora_model(batch.input_ids, attention_mask=batch.attention_mask, output_hidden_states=True, return_dict=True)
 
     with tempfile.TemporaryDirectory() as base_tmp:
         # Save base model
@@ -112,10 +111,7 @@ def test_qwen3_lora():
                 rngs=nnx.Rngs(1)
             )
 
-            # Load LoRA adapter weights from the PEFT model (before merge)
-            # Reload the PEFT model since we need access to the LoRA adapters
-            hf_lora_model = PeftModel.from_pretrained(base_hf_model, lora_adapter)
-
+            # Load LoRA adapter weights from the PEFT model
             for i, layer in enumerate(model.model.layers):
                 if hasattr(layer.mlp, 'gate_proj') and hasattr(layer.mlp.gate_proj, 'lora_a'):
                     hf_layer = hf_lora_model.base_model.model.model.layers[i].mlp
