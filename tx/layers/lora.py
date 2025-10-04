@@ -16,14 +16,8 @@ class LoRAMixin:
     """
 
     def init_lora(
-        self,
-        *,
-        num_adapters: int,
-        in_features: int,
-        out_features: int,
-        rank: int,
-        dtype: jnp.dtype,
-        rngs: nnx.Rngs,
+        self, *, num_adapters: int, in_features: int, out_features: int,
+        rank: int, dtype: jnp.dtype, rngs: nnx.Rngs,
     ) -> None:
         self.in_features = in_features
         self.out_features = out_features
@@ -35,24 +29,17 @@ class LoRAMixin:
             self.lora_A = None
             self.lora_B = None
         else:
-            # Initialize scaling to 1.0 for each adapter (alpha / rank where alpha = rank)
             self.lora_scaling = Param(
-                num_adapters,
-                dtype=dtype,
-                kernel_init=nnx.initializers.constant(1.0),
-                rngs=rngs,
+                num_adapters, dtype=dtype,
+                kernel_init=nnx.initializers.constant(1.0), rngs=rngs,
             )
             self.lora_A = Param(
-                num_adapters, in_features, rank,
-                dtype=dtype,
-                kernel_init=nnx.initializers.normal(stddev=0.02),
-                rngs=rngs,
+                num_adapters, in_features, rank, dtype=dtype,
+                kernel_init=nnx.initializers.normal(stddev=0.02), rngs=rngs,
             )
             self.lora_B = Param(
-                num_adapters, rank, out_features,
-                dtype=dtype,
-                kernel_init=nnx.initializers.zeros_init(),
-                rngs=rngs,
+                num_adapters, rank, out_features, dtype=dtype,
+                kernel_init=nnx.initializers.zeros_init(), rngs=rngs,
             )
 
     def apply_lora(
@@ -82,12 +69,8 @@ class LoRALinear(LoRAMixin, nnx.Linear):
     """An nnx.Linear layer with multi-adapter LoRA support."""
 
     def __init__(
-        self,
-        in_features: int,
-        out_features: int,
-        *,
-        num_adapters: int = 0,
-        rank: int = 8,
+        self, in_features: int, out_features: int, *,
+        num_adapters: int = 0, rank: int = 8,
         dtype: jnp.dtype = jnp.float32,
         param_dtype: jnp.dtype | None = None,
         use_bias: bool = True,
@@ -101,29 +84,13 @@ class LoRALinear(LoRAMixin, nnx.Linear):
         if use_bias and bias_init is None:
             bias_init = nnx.initializers.zeros_init()
 
-        super().__init__(
-            in_features,
-            out_features,
-            use_bias=use_bias,
-            dtype=dtype,
-            param_dtype=param_dtype,
-            kernel_init=kernel_init,
-            bias_init=bias_init,
-            rngs=rngs,
+        super().__init__(in_features, out_features, use_bias=use_bias, dtype=dtype, param_dtype=param_dtype,
+            kernel_init=kernel_init, bias_init=bias_init, rngs=rngs,
         )
-        self.init_lora(
-            num_adapters=num_adapters,
-            in_features=in_features,
-            out_features=out_features,
-            rank=rank,
-            dtype=param_dtype,
-            rngs=rngs,
+        self.init_lora(in_features=in_features, out_features=out_features, num_adapters=num_adapters, rank=rank,
+            dtype=param_dtype, rngs=rngs,
         )
 
-    def __call__(
-        self,
-        x: jax.Array,
-        adapter_indices: jax.Array | None = None,
-    ) -> jax.Array:
-        base_output = super().__call__(x)
-        return self.apply_lora(x, base_output, adapter_indices)
+    def __call__(self, x: jax.Array, adapter_indices: jax.Array | None = None) -> jax.Array:
+        base_out = super().__call__(x)
+        return self.apply_lora(x, base_out, adapter_indices)
