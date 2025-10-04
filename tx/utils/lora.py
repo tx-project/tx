@@ -78,7 +78,7 @@ def create_lora_shadow_model(base_model: nnx.Module, lora_rank: int, lora_alpha:
                     if name.startswith('_'):
                         continue
                     attr = getattr(module, name, None)
-                    if isinstance(attr, (nnx.Linear, nnx.List, nnx.Module)):
+                    if isinstance(attr, nnx.Module):
                         new_path = f"{path}.{name}" if path else name
                         wrapped = wrap_with_lora(attr, new_path)
                         setattr(module, name, wrapped)
