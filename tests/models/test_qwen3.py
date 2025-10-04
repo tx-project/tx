@@ -81,24 +81,28 @@ def test_qwen3_lora():
 
     tokenizer = AutoTokenizer.from_pretrained(base_model_name)
     base_hf_model = AutoModelForCausalLM.from_pretrained(base_model_name, attn_implementation="eager", use_safetensors=True)
-    hf_model = PeftModel.from_pretrained(base_hf_model, lora_adapter)
-    hf_model = hf_model.merge_and_unload()
+    hf_lora_model = PeftModel.from_pretrained(base_hf_model, lora_adapter)
 
     inputs = ["The capital of France is"]
     batch = tokenizer(inputs, return_tensors="pt", padding=True)
-    with torch.no_grad():
-        hf_outputs = hf_model(batch.input_ids, attention_mask=batch.attention_mask, output_hidden_states=True, return_dict=True)
 
-    with tempfile.TemporaryDirectory() as tmp:
-        hf_model.save_pretrained(tmp, safe_serialization=True)
+    # Get outputs from merged model for comparison
+    hf_merged_model = hf_lora_model.merge_and_unload()
+    with torch.no_grad():
+        hf_outputs = hf_merged_model(batch.input_ids, attention_mask=batch.attention_mask, output_hidden_states=True, return_dict=True)
+
+    with tempfile.TemporaryDirectory() as base_tmp:
+        # Save base model
+        base_hf_model.save_pretrained(base_tmp, safe_serialization=True)
 
         config = AutoConfig.from_pretrained(base_model_name)
 
         mesh = jax.make_mesh((1, 1), ("dp", "tp"))
         with jax.set_mesh(mesh):
-            # Create base model without LoRA
+            # Create base model and load base weights
             base_model = Qwen3ForCausalLM(config, dtype=jnp.float32, rngs=nnx.Rngs(0))
-            load_checkpoint(tmp, config, base_model)
+            load_checkpoint(base_tmp, config, base_model)
+
             # Create shadow model with LoRA adapters on MLP layers only
             model = create_lora_shadow_model(
                 base_model,
@@ -107,6 +111,26 @@ def test_qwen3_lora():
                 dtype=jnp.float32,
                 rngs=nnx.Rngs(1)
             )
+
+            # Load LoRA adapter weights from the PEFT model (before merge)
+            # Reload the PEFT model since we need access to the LoRA adapters
+            hf_lora_model = PeftModel.from_pretrained(base_hf_model, lora_adapter)
+
+            for i, layer in enumerate(model.model.layers):
+                if hasattr(layer.mlp, 'gate_proj') and hasattr(layer.mlp.gate_proj, 'lora_a'):
+                    hf_layer = hf_lora_model.base_model.model.model.layers[i].mlp
+
+                    # Load gate_proj LoRA weights
+                    layer.mlp.gate_proj.lora_a.value = jnp.array(hf_layer.gate_proj.lora_A['default'].weight.detach().numpy().T)
+                    layer.mlp.gate_proj.lora_b.value = jnp.array(hf_layer.gate_proj.lora_B['default'].weight.detach().numpy().T)
+
+                    # Load up_proj LoRA weights
+                    layer.mlp.up_proj.lora_a.value = jnp.array(hf_layer.up_proj.lora_A['default'].weight.detach().numpy().T)
+                    layer.mlp.up_proj.lora_b.value = jnp.array(hf_layer.up_proj.lora_B['default'].weight.detach().numpy().T)
+
+                    # Load down_proj LoRA weights
+                    layer.mlp.down_proj.lora_a.value = jnp.array(hf_layer.down_proj.lora_A['default'].weight.detach().numpy().T)
+                    layer.mlp.down_proj.lora_b.value = jnp.array(hf_layer.down_proj.lora_B['default'].weight.detach().numpy().T)
 
         outputs = model(batch.input_ids.numpy(), attention_mask=batch.attention_mask.numpy(), output_hidden_states=True)
         assert np.allclose(hf_outputs.logits, outputs["logits"], rtol=1e-3, atol=1e-3)
