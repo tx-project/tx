@@ -194,20 +194,37 @@ class Qwen3MoeSparseMoeBlock(nnx.Module):
 
 class Qwen3DecoderLayer(nnx.Module):
 
-    def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
+    def __init__(
+        self,
+        config: Qwen3Config,
+        *,
+        dtype: jnp.dtype,
+        rngs: nnx.Rngs,
+        num_adapters: int = 0,
+        lora_rank: int = 8,
+        lora_alpha: float = 16.0,
+    ) -> None:
         self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
         self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
         self.self_attn = Qwen3Attention(config, dtype=dtype, rngs=rngs)
         if getattr(config, "num_experts", None):
             self.mlp = Qwen3MoeSparseMoeBlock(config, dtype=dtype, rngs=rngs)
         else:
-            self.mlp = Qwen3MLP(config, dtype=dtype, rngs=rngs)
+            self.mlp = Qwen3MLP(
+                config,
+                dtype=dtype,
+                rngs=rngs,
+                num_adapters=num_adapters,
+                lora_rank=lora_rank,
+                lora_alpha=lora_alpha,
+            )
 
     def __call__(
         self,
         hidden_states: jax.Array,
         *,
         attention_mask: jax.Array | None = None,
+        adapter_indices: jax.Array | None = None,
     ) -> jax.Array:
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
@@ -219,7 +236,10 @@ class Qwen3DecoderLayer(nnx.Module):
 
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = self.mlp(hidden_states)
+        if isinstance(self.mlp, Qwen3MLP):
+            hidden_states = self.mlp(hidden_states, adapter_indices)
+        else:
+            hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
 
         return hidden_states
@@ -227,7 +247,16 @@ class Qwen3DecoderLayer(nnx.Module):
 
 class Qwen3Model(nnx.Module):
 
-    def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
+    def __init__(
+        self,
+        config: Qwen3Config,
+        *,
+        dtype: jnp.dtype,
+        rngs: nnx.Rngs,
+        num_adapters: int = 0,
+        lora_rank: int = 8,
+        lora_alpha: float = 16.0,
+    ) -> None:
         self.config = config
         self.embed_tokens = nnx.Embed(
             num_embeddings=config.vocab_size,
@@ -237,7 +266,17 @@ class Qwen3Model(nnx.Module):
             embedding_init=nnx.with_partitioning(nnx.initializers.normal(), jax.P("tp", None)),
             rngs=rngs,
         )
-        self.layers = nnx.List([Qwen3DecoderLayer(config, dtype=dtype, rngs=rngs) for _ in range(config.num_hidden_layers)])
+        self.layers = nnx.List([
+            Qwen3DecoderLayer(
+                config,
+                dtype=dtype,
+                rngs=rngs,
+                num_adapters=num_adapters,
+                lora_rank=lora_rank,
+                lora_alpha=lora_alpha,
+            )
+            for _ in range(config.num_hidden_layers)
+        ])
         self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
 
     def __call__(
@@ -246,6 +285,7 @@ class Qwen3Model(nnx.Module):
         *,
         attention_mask: jax.Array | None = None,
         output_hidden_states: bool | None = None,
+        adapter_indices: jax.Array | None = None,
     ) -> dict[str, jax.Array | list[jax.Array]]:
         output_hidden_states = (
             output_hidden_states
@@ -264,6 +304,7 @@ class Qwen3Model(nnx.Module):
             hidden_states = layer(
                 hidden_states,
                 attention_mask=attention_mask,
+                adapter_indices=adapter_indices,
             )
 
         hidden_states = self.norm(hidden_states)
@@ -278,9 +319,25 @@ class Qwen3Model(nnx.Module):
 
 class Qwen3ForCausalLM(nnx.Module):
 
-    def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
+    def __init__(
+        self,
+        config: Qwen3Config,
+        *,
+        dtype: jnp.dtype,
+        rngs: nnx.Rngs,
+        num_adapters: int = 0,
+        lora_rank: int = 8,
+        lora_alpha: float = 16.0,
+    ) -> None:
         self.config = config
-        self.model = Qwen3Model(config, dtype=dtype, rngs=rngs)
+        self.model = Qwen3Model(
+            config,
+            dtype=dtype,
+            rngs=rngs,
+            num_adapters=num_adapters,
+            lora_rank=lora_rank,
+            lora_alpha=lora_alpha,
+        )
         if not self.config.tie_word_embeddings:
             self.lm_head = nnx.Linear(
                 config.hidden_size, config.vocab_size, use_bias=False, dtype=dtype, param_dtype=dtype,
@@ -293,11 +350,13 @@ class Qwen3ForCausalLM(nnx.Module):
         *,
         attention_mask: jax.Array | None = None,
         output_hidden_states: bool | None = None,
+        adapter_indices: jax.Array | None = None,
     ) -> dict[str, jax.Array | list[jax.Array]]:
         outputs = self.model(
             input_ids,
             attention_mask=attention_mask,
             output_hidden_states=output_hidden_states,
+            adapter_indices=adapter_indices,
         )
         hidden_states = outputs["last_hidden_state"]
         if self.config.tie_word_embeddings:

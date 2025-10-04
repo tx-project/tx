@@ -60,7 +60,7 @@ class LoRAMixin:
             return base_output
 
         batch_size = x.shape[0]
-        assert adapter_indices, "If num_adapters > 0, adapter_indices need to be specified"
+        assert adapter_indices is not None, "If num_adapters > 0, adapter_indices need to be specified"
         assert adapter_indices.shape[0] == batch_size
 
         x_flat = x.reshape(batch_size, -1, self.in_features)
