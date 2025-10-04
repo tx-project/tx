@@ -96,17 +96,40 @@ def test_qwen3_lora():
             base_model = Qwen3ForCausalLM(config, dtype=jnp.float32, rngs=nnx.Rngs(0))
             load_checkpoint(base_tmp, config, base_model)
 
-            # Create shadow model with LoRA adapters on MLP layers only
+
+            # Load LoRA config first to get the rank and alpha
+            from peft import LoraConfig, get_peft_model
+
+            # Get the original config but override target_modules to only MLP
+            original_lora_config = LoraConfig.from_pretrained(lora_adapter)
+
+            # Create a new config with only MLP target modules for testing
+            mlp_only_config = LoraConfig(
+                r=original_lora_config.r,
+                lora_alpha=original_lora_config.lora_alpha,
+                target_modules=['gate_proj', 'up_proj', 'down_proj'],
+                lora_dropout=original_lora_config.lora_dropout,
+                bias=original_lora_config.bias,
+                task_type=original_lora_config.task_type,
+            )
+
+            # Apply this config to create a new PEFT model with MLP-only LoRA
+            hf_lora_model = get_peft_model(base_hf_model, mlp_only_config)
+            hf_lora_model.eval()
+
+            # Load the adapter weights from the original adapter
+            hf_lora_model.load_adapter(lora_adapter, adapter_name='default')
+            lora_config = mlp_only_config
+
+            # Create shadow model with LoRA adapters on MLP layers only, using the correct config
             model = create_lora_shadow_model(
                 base_model,
-                lora_rank=8,
+                lora_rank=lora_config.r,
+                lora_alpha=lora_config.lora_alpha,
                 target_modules=["mlp.gate_proj", "mlp.up_proj", "mlp.down_proj"],
                 dtype=jnp.float32,
                 rngs=nnx.Rngs(1)
             )
-
-            # Now load the LoRA adapter on HuggingFace side
-            hf_lora_model = PeftModel.from_pretrained(base_hf_model, lora_adapter)
 
             # Get outputs from LoRA model for comparison
             with torch.no_grad():
