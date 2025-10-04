@@ -100,13 +100,7 @@ class Qwen3Attention(nnx.Module):
 
 class Qwen3MLP(nnx.Module):
 
-    def __init__(
-        self,
-        config: Qwen3Config | Qwen3ConfigWithLoRA,
-        *,
-        dtype: jnp.dtype,
-        rngs: nnx.Rngs,
-    ) -> None:
+    def __init__(self,config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         max_lora_adapters = getattr(config, 'max_lora_adapters', 0)
         max_lora_rank = getattr(config, 'max_lora_rank', 8)
 
@@ -208,13 +202,7 @@ class Qwen3MoeSparseMoeBlock(nnx.Module):
 
 class Qwen3DecoderLayer(nnx.Module):
 
-    def __init__(
-        self,
-        config: Qwen3Config | Qwen3ConfigWithLoRA,
-        *,
-        dtype: jnp.dtype,
-        rngs: nnx.Rngs,
-    ) -> None:
+    def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
         self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
         self.self_attn = Qwen3Attention(config, dtype=dtype, rngs=rngs)
@@ -251,13 +239,7 @@ class Qwen3DecoderLayer(nnx.Module):
 
 class Qwen3Model(nnx.Module):
 
-    def __init__(
-        self,
-        config: Qwen3Config | Qwen3ConfigWithLoRA,
-        *,
-        dtype: jnp.dtype,
-        rngs: nnx.Rngs,
-    ) -> None:
+    def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.config = config
         self.embed_tokens = nnx.Embed(
             num_embeddings=config.vocab_size,
@@ -313,13 +295,7 @@ class Qwen3Model(nnx.Module):
 
 class Qwen3ForCausalLM(nnx.Module):
 
-    def __init__(
-        self,
-        config: Qwen3Config | Qwen3ConfigWithLoRA,
-        *,
-        dtype: jnp.dtype,
-        rngs: nnx.Rngs,
-    ) -> None:
+    def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
         self.config = config
         self.model = Qwen3Model(config, dtype=dtype, rngs=rngs)
         if not self.config.tie_word_embeddings:
