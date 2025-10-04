@@ -73,7 +73,6 @@ def test_qwen3_moe_layer():
 
 def test_qwen3_lora():
     """Test LoRA implementation by comparing with HuggingFace PEFT model."""
-    from peft import PeftModel
     from tx.utils.lora import create_lora_shadow_model
 
     base_model_name = "Qwen/Qwen3-0.6B"
