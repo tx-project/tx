@@ -15,6 +15,10 @@ class LoRAMixin:
     be used with layers like nnx.Linear.
     """
 
+    lora_scaling: nnx.Param | None
+    lora_A: nnx.Param | None
+    lora_B: nnx.Param | None
+
     def init_lora(
         self, *, num_adapters: int, in_features: int, out_features: int,
         rank: int, dtype: jnp.dtype, rngs: nnx.Rngs,

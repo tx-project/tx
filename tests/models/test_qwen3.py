@@ -10,6 +10,7 @@ import pytest
 import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
+from tx.layers.lora import LoRAMixin
 from tx.models import Qwen3ForCausalLM
 from tx.models.qwen3 import Qwen3MoeSparseMoeBlock
 from tx.utils.models import load_checkpoint
@@ -70,6 +71,19 @@ def test_qwen3_moe_layer():
 
     assert np.allclose(hf_router_logits, router_logits, rtol=1e-4)
     assert np.allclose(hf_final_hidden_states, final_hidden_states, rtol=1e-2, atol=1e-2)
+
+
+def load_lora_weights(jax_module: LoRAMixin, hf_module: torch.nn.Module,
+    adapter_idx: int, scaling: float, adapter_name: str = 'default') -> None:
+    """Load LoRA weights from HF module to JAX module."""
+    assert jax_module.lora_A is not None and jax_module.lora_B is not None and jax_module.lora_scaling is not None
+    jax_module.lora_A.value = jax_module.lora_A.value.at[adapter_idx].set(
+        jnp.array(hf_module.lora_A[adapter_name].weight.detach().numpy().T)  # ty: ignore
+    )
+    jax_module.lora_B.value = jax_module.lora_B.value.at[adapter_idx].set(
+        jnp.array(hf_module.lora_B[adapter_name].weight.detach().numpy().T)  # ty: ignore
+    )
+    jax_module.lora_scaling.value = jax_module.lora_scaling.value.at[adapter_idx].set(scaling)
 
 
 def test_qwen3_lora():
@@ -134,33 +148,11 @@ def test_qwen3_lora():
             for i, layer in enumerate(model.model.layers):
                 if hasattr(layer.mlp, 'gate_proj') and hasattr(layer.mlp.gate_proj, 'lora_A'):
                     hf_layer = hf_lora_model.base_model.model.model.layers[i].mlp
-
-                    # Load gate_proj LoRA weights (adapter index 0)
-                    layer.mlp.gate_proj.lora_A.value = layer.mlp.gate_proj.lora_A.value.at[0].set(
-                        jnp.array(hf_layer.gate_proj.lora_A['default'].weight.detach().numpy().T)
-                    )
-                    layer.mlp.gate_proj.lora_B.value = layer.mlp.gate_proj.lora_B.value.at[0].set(
-                        jnp.array(hf_layer.gate_proj.lora_B['default'].weight.detach().numpy().T)
-                    )
-                    layer.mlp.gate_proj.lora_scaling.value = layer.mlp.gate_proj.lora_scaling.value.at[0].set(lora_scaling)
-
-                    # Load up_proj LoRA weights (adapter index 0)
-                    layer.mlp.up_proj.lora_A.value = layer.mlp.up_proj.lora_A.value.at[0].set(
-                        jnp.array(hf_layer.up_proj.lora_A['default'].weight.detach().numpy().T)
-                    )
-                    layer.mlp.up_proj.lora_B.value = layer.mlp.up_proj.lora_B.value.at[0].set(
-                        jnp.array(hf_layer.up_proj.lora_B['default'].weight.detach().numpy().T)
-                    )
-                    layer.mlp.up_proj.lora_scaling.value = layer.mlp.up_proj.lora_scaling.value.at[0].set(lora_scaling)
-
-                    # Load down_proj LoRA weights (adapter index 0)
-                    layer.mlp.down_proj.lora_A.value = layer.mlp.down_proj.lora_A.value.at[0].set(
-                        jnp.array(hf_layer.down_proj.lora_A['default'].weight.detach().numpy().T)
-                    )
-                    layer.mlp.down_proj.lora_B.value = layer.mlp.down_proj.lora_B.value.at[0].set(
-                        jnp.array(hf_layer.down_proj.lora_B['default'].weight.detach().numpy().T)
-                    )
-                    layer.mlp.down_proj.lora_scaling.value = layer.mlp.down_proj.lora_scaling.value.at[0].set(lora_scaling)
+                    for proj_name in ['gate_proj', 'up_proj', 'down_proj']:
+                        load_lora_weights(
+                            getattr(layer.mlp, proj_name), getattr(hf_layer, proj_name),
+                            adapter_idx=0, scaling=lora_scaling
+                        )
 
         # Use adapter index 0 for inference
         adapter_indices = jnp.zeros(batch.input_ids.shape[0], dtype=jnp.int32)
