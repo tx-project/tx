@@ -9,8 +9,8 @@ class ScaledLoRA(nnx.Module):
     """LoRA wrapper with proper alpha scaling."""
 
     def __init__(self, in_features: int, lora_rank: int, out_features: int,
-                 lora_alpha: float, base_module: nnx.Module = None,
-                 dtype: jnp.dtype = jnp.float32, rngs: nnx.Rngs = None):
+                 lora_alpha: float, base_module: nnx.Module,
+                 dtype: jnp.dtype = jnp.float32, *, rngs: nnx.Rngs):
         self.base_module = base_module
         self.lora_a = nnx.Param(nnx.initializers.normal(stddev=1.0)(rngs.param(), (in_features, lora_rank), dtype))
         self.lora_b = nnx.Param(nnx.initializers.zeros_init()(rngs.param(), (lora_rank, out_features), dtype))
@@ -19,14 +19,14 @@ class ScaledLoRA(nnx.Module):
 
     def __call__(self, x: jax.Array) -> jax.Array:
         # Apply LoRA with scaling: base(x) + scaling * (x @ A @ B)
-        base_out = self.base_module(x) if self.base_module else 0
+        base_out = self.base_module(x)
         lora_out = x @ self.lora_a.value @ self.lora_b.value
         return base_out + self.scaling * lora_out
 
 
 def create_lora_shadow_model(base_model: nnx.Module, lora_rank: int, lora_alpha: float = 16.0,
-                              target_modules: list[str] = None, dtype: jnp.dtype = jnp.float32,
-                              rngs: nnx.Rngs = None) -> nnx.Module:
+                              target_modules: list[str] | None = None, dtype: jnp.dtype = jnp.float32, *,
+                              rngs: nnx.Rngs) -> nnx.Module:
     """
     Create a shadow model with LoRA adapters on top of a base model.
 
@@ -45,9 +45,6 @@ def create_lora_shadow_model(base_model: nnx.Module, lora_rank: int, lora_alpha:
     Returns:
         A new model with LoRA adapters wrapping the specified Linear layers
     """
-    if rngs is None:
-        rngs = nnx.Rngs(0)
-
     # Create a graphdef and state split
     graphdef, state = nnx.split(base_model)
     shadow_model = nnx.merge(graphdef, state)
