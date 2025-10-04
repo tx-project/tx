@@ -80,18 +80,12 @@ def test_qwen3_lora():
     lora_adapter = "charent/self_cognition_Alice"
 
     tokenizer = AutoTokenizer.from_pretrained(base_model_name)
-    base_hf_model = AutoModelForCausalLM.from_pretrained(base_model_name, attn_implementation="eager", use_safetensors=True)
-    hf_lora_model = PeftModel.from_pretrained(base_hf_model, lora_adapter)
-
     inputs = ["The capital of France is"]
     batch = tokenizer(inputs, return_tensors="pt", padding=True)
 
-    # Get outputs from LoRA model for comparison
-    with torch.no_grad():
-        hf_outputs = hf_lora_model(batch.input_ids, attention_mask=batch.attention_mask, output_hidden_states=True, return_dict=True)
-
     with tempfile.TemporaryDirectory() as base_tmp:
-        # Save base model
+        # Load and save base model
+        base_hf_model = AutoModelForCausalLM.from_pretrained(base_model_name, attn_implementation="eager", use_safetensors=True)
         base_hf_model.save_pretrained(base_tmp, safe_serialization=True)
 
         config = AutoConfig.from_pretrained(base_model_name)
@@ -110,6 +104,13 @@ def test_qwen3_lora():
                 dtype=jnp.float32,
                 rngs=nnx.Rngs(1)
             )
+
+            # Now load the LoRA adapter on HuggingFace side
+            hf_lora_model = PeftModel.from_pretrained(base_hf_model, lora_adapter)
+
+            # Get outputs from LoRA model for comparison
+            with torch.no_grad():
+                hf_outputs = hf_lora_model(batch.input_ids, attention_mask=batch.attention_mask, output_hidden_states=True, return_dict=True)
 
             # Load LoRA adapter weights from the PEFT model
             for i, layer in enumerate(model.model.layers):
