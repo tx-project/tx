@@ -3,6 +3,7 @@ import jax
 from jax import numpy as jnp
 from transformers import Qwen3Config
 
+from tx.layers.lora import LoRALinear
 
 def Param(*shape: int, dtype: jnp.dtype, kernel_init: nnx.Initializer, rngs: nnx.Rngs):
     return nnx.Param(kernel_init(rngs.param(), shape, dtype))
@@ -85,22 +86,58 @@ class Qwen3Attention(nnx.Module):
 
 class Qwen3MLP(nnx.Module):
 
-    def __init__(self, config: Qwen3Config, *, dtype: jnp.dtype, rngs: nnx.Rngs) -> None:
-        self.gate_proj = nnx.Linear(
-            config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype,
-            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")), rngs=rngs
+    def __init__(
+        self,
+        config: Qwen3Config,
+        *,
+        dtype: jnp.dtype,
+        rngs: nnx.Rngs,
+        num_adapters: int = 0,
+        lora_rank: int = 8,
+        lora_alpha: float = 16.0,
+    ) -> None:
+        init_hidden_tp = nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp"))
+        self.gate_proj = LoRALinear(
+            config.hidden_size,
+            config.intermediate_size,
+            num_adapters=num_adapters,
+            rank=lora_rank,
+            alpha=lora_alpha,
+            use_bias=False,
+            dtype=dtype,
+            param_dtype=dtype,
+            kernel_init=init_hidden_tp,
+            rngs=rngs,
         )
-        self.up_proj = nnx.Linear(
-            config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype,
-            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")), rngs=rngs
+        self.up_proj = LoRALinear(
+            config.hidden_size,
+            config.intermediate_size,
+            num_adapters=num_adapters,
+            rank=lora_rank,
+            alpha=lora_alpha,
+            use_bias=False,
+            dtype=dtype,
+            param_dtype=dtype,
+            kernel_init=init_hidden_tp,
+            rngs=rngs,
         )
-        self.down_proj = nnx.Linear(
-            config.intermediate_size, config.hidden_size, use_bias=False, dtype=dtype, param_dtype=dtype,
-            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P("tp", None)), rngs=rngs
+        self.down_proj = LoRALinear(
+            config.intermediate_size,
+            config.hidden_size,
+            num_adapters=num_adapters,
+            rank=lora_rank,
+            alpha=lora_alpha,
+            use_bias=False,
+            dtype=dtype,
+            param_dtype=dtype,
+            kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P("tp", None)),
+            rngs=rngs,
         )
 
-    def __call__(self, x: jax.Array) -> jax.Array:
-        return self.down_proj(nnx.silu(self.gate_proj(x)) * self.up_proj(x))
+    def __call__(self, x: jax.Array, adapter_indices: jax.Array | None = None) -> jax.Array:
+        gate = self.gate_proj(x, adapter_indices)
+        up = self.up_proj(x, adapter_indices)
+        return self.down_proj(nnx.silu(gate) * up, adapter_indices)
 
 
 class Qwen3Experts(nnx.Module):
@@ -291,4 +328,3 @@ class Qwen3ForCausalLM(nnx.Module):
             logits = self.lm_head(hidden_states)
 
         return {"logits": logits, **outputs}
-
