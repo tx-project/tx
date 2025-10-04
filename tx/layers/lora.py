@@ -22,7 +22,6 @@ class LoRAMixin:
         in_features: int,
         out_features: int,
         rank: int,
-        alpha: float,
         dtype: jnp.dtype,
         rngs: nnx.Rngs,
     ) -> None:
@@ -32,11 +31,17 @@ class LoRAMixin:
         self.rank = rank
 
         if num_adapters == 0:
-            self.scaling = 0.0
+            self.lora_scaling = None
             self.lora_A = None
             self.lora_B = None
         else:
-            self.scaling = alpha / rank
+            # Initialize scaling to 1.0 for each adapter (alpha / rank where alpha = rank)
+            self.lora_scaling = Param(
+                num_adapters,
+                dtype=dtype,
+                kernel_init=nnx.initializers.constant(1.0),
+                rngs=rngs,
+            )
             self.lora_A = Param(
                 num_adapters, in_features, rank,
                 dtype=dtype,
@@ -66,9 +71,10 @@ class LoRAMixin:
         x_flat = x.reshape(batch_size, -1, self.in_features)
         A = self.lora_A.value[adapter_indices]
         B = self.lora_B.value[adapter_indices]
+        scaling = self.lora_scaling.value[adapter_indices]
 
         lora_output = jnp.einsum('bsi,bir,bro->bso', x_flat, A, B)
-        lora_output = lora_output.reshape(base_output.shape) * self.scaling
+        lora_output = lora_output.reshape(base_output.shape) * scaling[:, None, None]
         return base_output + lora_output
 
 
@@ -82,7 +88,6 @@ class LoRALinear(LoRAMixin, nnx.Linear):
         *,
         num_adapters: int = 0,
         rank: int = 8,
-        alpha: float = 16.0,
         dtype: jnp.dtype = jnp.float32,
         param_dtype: jnp.dtype | None = None,
         use_bias: bool = True,
@@ -111,7 +116,6 @@ class LoRALinear(LoRAMixin, nnx.Linear):
             in_features=in_features,
             out_features=out_features,
             rank=rank,
-            alpha=alpha,
             dtype=param_dtype,
             rngs=rngs,
         )

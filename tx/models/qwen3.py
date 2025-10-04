@@ -92,24 +92,23 @@ class Qwen3MLP(nnx.Module):
         *,
         dtype: jnp.dtype,
         rngs: nnx.Rngs,
-        num_adapters: int = 0,
-        lora_rank: int = 8,
-        lora_alpha: float = 16.0,
+        max_lora_adapters: int = 0,
+        max_lora_rank: int = 8,
     ) -> None:
         self.gate_proj = LoRALinear(
             config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype,
             kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")),
-            num_adapters=num_adapters, rank=lora_rank, alpha=lora_alpha, rngs=rngs,
+            num_adapters=max_lora_adapters, rank=max_lora_rank, rngs=rngs,
         )
         self.up_proj = LoRALinear(
             config.hidden_size, config.intermediate_size, use_bias=False, dtype=dtype, param_dtype=dtype,
             kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P(None, "tp")),
-            num_adapters=num_adapters, rank=lora_rank, alpha=lora_alpha, rngs=rngs,
+            num_adapters=max_lora_adapters, rank=max_lora_rank, rngs=rngs,
         )
         self.down_proj = LoRALinear(
             config.intermediate_size, config.hidden_size, use_bias=False, dtype=dtype, param_dtype=dtype,
             kernel_init=nnx.with_partitioning(nnx.initializers.lecun_normal(), jax.P("tp", None)),
-            num_adapters=num_adapters, rank=lora_rank, alpha=lora_alpha, rngs=rngs,
+            num_adapters=max_lora_adapters, rank=max_lora_rank, rngs=rngs,
         )
 
     def __call__(self, x: jax.Array, adapter_indices: jax.Array | None = None) -> jax.Array:
@@ -200,9 +199,8 @@ class Qwen3DecoderLayer(nnx.Module):
         *,
         dtype: jnp.dtype,
         rngs: nnx.Rngs,
-        num_adapters: int = 0,
-        lora_rank: int = 8,
-        lora_alpha: float = 16.0,
+        max_lora_adapters: int = 0,
+        max_lora_rank: int = 8,
     ) -> None:
         self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
         self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, dtype=dtype, rngs=rngs)
@@ -214,9 +212,8 @@ class Qwen3DecoderLayer(nnx.Module):
                 config,
                 dtype=dtype,
                 rngs=rngs,
-                num_adapters=num_adapters,
-                lora_rank=lora_rank,
-                lora_alpha=lora_alpha,
+                max_lora_adapters=max_lora_adapters,
+                max_lora_rank=max_lora_rank,
             )
 
     def __call__(
@@ -253,9 +250,8 @@ class Qwen3Model(nnx.Module):
         *,
         dtype: jnp.dtype,
         rngs: nnx.Rngs,
-        num_adapters: int = 0,
-        lora_rank: int = 8,
-        lora_alpha: float = 16.0,
+        max_lora_adapters: int = 0,
+        max_lora_rank: int = 8,
     ) -> None:
         self.config = config
         self.embed_tokens = nnx.Embed(
@@ -271,9 +267,8 @@ class Qwen3Model(nnx.Module):
                 config,
                 dtype=dtype,
                 rngs=rngs,
-                num_adapters=num_adapters,
-                lora_rank=lora_rank,
-                lora_alpha=lora_alpha,
+                max_lora_adapters=max_lora_adapters,
+                max_lora_rank=max_lora_rank,
             )
             for _ in range(config.num_hidden_layers)
         ])
@@ -325,18 +320,16 @@ class Qwen3ForCausalLM(nnx.Module):
         *,
         dtype: jnp.dtype,
         rngs: nnx.Rngs,
-        num_adapters: int = 0,
-        lora_rank: int = 8,
-        lora_alpha: float = 16.0,
+        max_lora_adapters: int = 0,
+        max_lora_rank: int = 8,
     ) -> None:
         self.config = config
         self.model = Qwen3Model(
             config,
             dtype=dtype,
             rngs=rngs,
-            num_adapters=num_adapters,
-            lora_rank=lora_rank,
-            lora_alpha=lora_alpha,
+            max_lora_adapters=max_lora_adapters,
+            max_lora_rank=max_lora_rank,
         )
         if not self.config.tie_word_embeddings:
             self.lm_head = nnx.Linear(

@@ -116,9 +116,8 @@ def test_qwen3_lora():
                 config,
                 dtype=jnp.float32,
                 rngs=nnx.Rngs(0),
-                num_adapters=1,
-                lora_rank=lora_config.r,
-                lora_alpha=lora_config.lora_alpha,
+                max_lora_adapters=1,
+                max_lora_rank=lora_config.r,
             )
             # Load base weights
             load_checkpoint(base_tmp, config, model)
@@ -126,6 +125,9 @@ def test_qwen3_lora():
             # Get outputs from LoRA model for comparison
             with torch.no_grad():
                 hf_outputs = hf_lora_model(batch.input_ids, attention_mask=batch.attention_mask, output_hidden_states=True, return_dict=True)
+
+            # Calculate scaling factor for the adapter (alpha / rank)
+            lora_scaling = lora_config.lora_alpha / lora_config.r
 
             # Load LoRA adapter weights from the PEFT model
             for i, layer in enumerate(model.model.layers):
@@ -139,6 +141,7 @@ def test_qwen3_lora():
                     layer.mlp.gate_proj.lora_B.value = layer.mlp.gate_proj.lora_B.value.at[0].set(
                         jnp.array(hf_layer.gate_proj.lora_B['default'].weight.detach().numpy().T)
                     )
+                    layer.mlp.gate_proj.lora_scaling.value = layer.mlp.gate_proj.lora_scaling.value.at[0].set(lora_scaling)
 
                     # Load up_proj LoRA weights (adapter index 0)
                     layer.mlp.up_proj.lora_A.value = layer.mlp.up_proj.lora_A.value.at[0].set(
@@ -147,6 +150,7 @@ def test_qwen3_lora():
                     layer.mlp.up_proj.lora_B.value = layer.mlp.up_proj.lora_B.value.at[0].set(
                         jnp.array(hf_layer.up_proj.lora_B['default'].weight.detach().numpy().T)
                     )
+                    layer.mlp.up_proj.lora_scaling.value = layer.mlp.up_proj.lora_scaling.value.at[0].set(lora_scaling)
 
                     # Load down_proj LoRA weights (adapter index 0)
                     layer.mlp.down_proj.lora_A.value = layer.mlp.down_proj.lora_A.value.at[0].set(
@@ -155,6 +159,7 @@ def test_qwen3_lora():
                     layer.mlp.down_proj.lora_B.value = layer.mlp.down_proj.lora_B.value.at[0].set(
                         jnp.array(hf_layer.down_proj.lora_B['default'].weight.detach().numpy().T)
                     )
+                    layer.mlp.down_proj.lora_scaling.value = layer.mlp.down_proj.lora_scaling.value.at[0].set(lora_scaling)
 
         # Use adapter index 0 for inference
         adapter_indices = jnp.zeros(batch.input_ids.shape[0], dtype=jnp.int32)
