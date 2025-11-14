@@ -1,7 +1,7 @@
 # tx: Cross-Platform Transformer Training
 
 **Note:** The development of this repository was moved to
-[The SkyRL repository](https://github.com/NovaSky-AI/SkyRL/tree/main/skyrl-tx)
+the [SkyRL repository](https://github.com/NovaSky-AI/SkyRL/tree/main/skyrl-tx)
 and this repository is archived.
 
 tx (**t**ransformers **x**-platform) is a JAX/OpenXLA-based library
